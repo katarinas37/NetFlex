@@ -1,0 +1,41 @@
+# MATLAB specific files
+*.asv
+*.m~
+*.mlx~
+*.mat
+*.mexw64
+*.mexw32
+*.mexmaci64
+*.mexmaci
+*.slx
+*.slxc
+*.mdl
+*.fig
+*.bak
+*.log
+*.dat
+
+# Simulink cache files
+slprj/
+simulinkCodeGen/
+codegen/
+sfun_registry.json
+
+# Workspace & auto-save files
+*.autosave
+*.asv
+*.mlappinstall
+*.mlpkginstall
+
+# Configuration and temporary files
+*.tmr
+*.txt~
+.DS_Store
+Thumbs.db
+
+# Ignore backup and temp files
+*.bak
+*~
+
+# Ignore VS Code settings
+.vscode
