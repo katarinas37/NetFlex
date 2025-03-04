@@ -11,7 +11,7 @@ classdef NcsPlant <handle
     %
     %See also: ss
     
-    properties(SetAccess=private)
+    properties (Access = private)
         n % System order
         m % Input size
         Td % Sampling time

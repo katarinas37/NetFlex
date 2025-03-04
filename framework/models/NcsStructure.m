@@ -10,7 +10,7 @@ classdef NcsStructure < handle
     %
     %See also: NetworkDelay, NetworkOrderer, ISM_ControllerNode, SensorNode, NetworkBuffer, NcsProblem
 
-    properties
+    properties (Access = private)
         ncsPlant NcsPlant %Object which specifies the control loop (plant, delays, ...)
         sensor_node SensorNode %Sensor Node Object
         simtime %Largest simulation time

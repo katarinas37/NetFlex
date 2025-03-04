@@ -1,8 +1,8 @@
 %% Stability Analysis and Control Synthesis for Switched Systems: 
 % Simulation
 clear; clc;
-% run('/Users/kala/Documents/truetime-2.0/init_truetime.m')
-addpath('/Users/kala/Desktop/T')
+% run('libs/truetime-2.0/init_truetime.m')
+%addpath('framework/')
 
 Ac = [0,1;0,0];
 bc = [0;1];
