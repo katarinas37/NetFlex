@@ -1,4 +1,4 @@
-![NetFlex Logo](logo.jpeg)
+![NetFlex Logo](logo.png)
 
 # NetFlex - Networked Control Systems Simulation Framework
 
