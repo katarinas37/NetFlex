@@ -1,4 +1,4 @@
-![NetFlex Logo](logo.jpeg)
+<img src="logo.jpeg" alt="NetFlex Logo" width="350"/>
 
 # NetFlex - Networked Control Systems (NCS) Simulation Framework
 
