@@ -18,15 +18,16 @@ initialState = [0.2; 0];
 stateSize = size(bc,1);
 inputSize = size(bc,2);
 system = ss(Ac, bc, eye(stateSize), zeros(stateSize,1));
-discreteSystem = c2d(system, samplingTime);
+
+% Define control parameters
+controlParams.Ramp = struct();
+controlParams.StateFeedbackStrategy.k = [10, 20];
 
 %% Initialize NCS plant
 ncsPlant = NcsPlant(system, delaySteps, samplingTime);
 
-controlParams.StateFeedbackStrategy.k = [10, 20, 30];
-
 %% Create Networked Control System
-ncs = NcsStructure(ncsPlant, 'simTime', simulationTime, 'controlParams', controlParams);
+ncs = NcsStructure(ncsPlant, 'simTime', simulationTime, 'controlParams', controlParams, );
 
 %% Run simulation
 sim('C_sim');

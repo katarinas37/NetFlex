@@ -10,7 +10,7 @@ classdef VariableDelay < NetworkNode & handle
     %
     % Methods:
     %   - VariableDelay(outputCount, nextNode, nodeNumber)
-    %   - calculateTransmitTime(receivedMessage) : Abstract method to compute message transmit time.
+    %   - calculateTransmitTime(receivedMsg) : Abstract method to compute message transmit time.
     %   - delayCode(segment) : Processes incoming messages and schedules their transmission.
     %   - sendCode(segment) : Sends messages at the scheduled transmit time.
     %   - init() : Initializes the TrueTime kernel and delay tasks.
@@ -22,7 +22,7 @@ classdef VariableDelay < NetworkNode & handle
     end
     
     methods (Abstract)
-        transmitTime = calculateTransmitTime(obj, receivedMessage) % Computes transmit time for each message
+        [transmitTime, sentMsg] = calculateTransmitTime(obj, receivedMsg) % Computes transmit time for each message
     end
     
     methods
@@ -45,14 +45,14 @@ classdef VariableDelay < NetworkNode & handle
             switch seg
                 case 1
                     % Receive new message
-                    receivedMessage = ttGetMsg();
-                    if ~isa(receivedMessage, 'NetworkMsg')
+                    receivedMsg = ttGetMsg();
+                    if ~isa(receivedMsg, 'NetworkMsg')
                         error('VariableDelay:InvalidMessageType', 'Variable Delay can only process NetworkMsg objects.');
                     end
                     
                     % Compute transmission time
-                    transmitTime = obj.calculateTransmitTime(receivedMessage);
-                    receivedMessage.lastTransmitTimestamp = [receivedMessage.lastTransmitTimestamp(end), transmitTime];
+                    [transmitTime, sentMsg] = obj.calculateTransmitTime(receivedMsg);
+                    sentMsg.lastTransmitTimestamp = [sentMsg.lastTransmitTimestamp(end), transmitTime];
 
                     if obj.messageBuffer.elementCount == 0 || transmitTime < obj.messageBuffer.getTop().transmitTime
                         % Cancel existing job, insert new packet at the beginning, and reschedule job
@@ -63,14 +63,14 @@ classdef VariableDelay < NetworkNode & handle
                         end
                         
                         % Insert new message at the top of the buffer
-                        element = BufferElement(transmitTime, receivedMessage);
+                        element = BufferElement(transmitTime, sentMsg);
                         obj.messageBuffer.pushTop(element);
                         
                         % Schedule a new send job for the next packet
                         ttCreateJob(obj.sendTaskName);
                     else
                         % Insert the message into the buffer and sort by transmission time
-                        element = BufferElement(transmitTime, receivedMessage);
+                        element = BufferElement(transmitTime, sentMsg);
                         obj.messageBuffer.pushBack(element);
                         obj.messageBuffer.sortBuffer();
                     end

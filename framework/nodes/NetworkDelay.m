@@ -25,12 +25,13 @@ classdef NetworkDelay < VariableDelay
             obj.delayTimes = delayTimes;
         end
         
-        function transmitTime = calculateTransmitTime(obj, receivedMessage) 
+        function [transmitTime, sentMsg] = calculateTransmitTime(obj, receivedMessage) 
             % calculateTransmitTime Computes message transmission time.
             %
             % Example:
             %   transmitTime = obj.calculateTransmitTime(receivedMessage);
             
+            sentMsg = receivedMessage;
             ttCurrentTime();
             transmitTime = obj.delayTimes(receivedMessage.seq) + receivedMessage.lastTransmitTimestamp(end);
         end

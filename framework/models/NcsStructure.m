@@ -22,6 +22,7 @@ classdef NcsStructure < handle
         sensorNode SensorNode % Sensor node object
         simTime double % Largest simulation time
         tauCaNode NetworkDelay % Variable delay object from controller to actuator
+        test1 NetworkDropoutSimple
         controllerNode ControllerNode % Controller node object
         controlParams struct % Control parameters for the controller
     end
@@ -42,6 +43,7 @@ classdef NcsStructure < handle
             % Example:
             %   ncs = NcsPlant(sys, 3, 0.1);
             %   structure = NcsStructure(ncs, 'simTime', 10);
+            
             
             % Validate input type
             if ~isa(ncsPlant, 'NcsPlant')
@@ -68,12 +70,16 @@ classdef NcsStructure < handle
             actNodeNumber = obj.SENSOR_NODE_NUMBER + 1;
             controllerNodeNumber = actNodeNumber;
             delayCaNodeNumber = actNodeNumber + 1;
+            test1Node = actNodeNumber + 2;
 
             tauCa = obj.generateDelays();
-                
+            
+            load('networkeffects.mat', 'vec_ca'); % Load only required variable
+
             % Create nodes
-            obj.controllerNode = ControllerNode(delayCaNodeNumber, controllerNodeNumber, obj.ncsPlant, obj.controlParams.('StateFeedbackStrategy'), 'StateFeedbackStrategy');
-            obj.tauCaNode = NetworkDelay(1, 0, delayCaNodeNumber, tauCa);
+            obj.controllerNode = ControllerNode(delayCaNodeNumber, controllerNodeNumber, obj.ncsPlant, obj.controlParams.('Ramp'), 'Ramp');
+            obj.tauCaNode = NetworkDelay(1, test1Node, delayCaNodeNumber, tauCa*0);
+            obj.test1 = NetworkDropoutSimple(1, 0, test1Node, vec_ca);
             obj.sensorNode = SensorNode(obj.ncsPlant.stateSize(), controllerNodeNumber, ...
                 obj.SENSOR_NODE_NUMBER, obj.ncsPlant.samplingTime(), obj.simTime);
         end
@@ -95,7 +101,7 @@ classdef NcsStructure < handle
 
         function allNodes = get.allnodes(obj)
             % Returns a cell array of all nodes in the NCS.
-            allNodes = [{obj.sensorNode}; {obj.controllerNode}; {obj.tauCaNode}];
+            allNodes = [{obj.sensorNode}; {obj.controllerNode}; {obj.tauCaNode}; {obj.test1}];
         end
 
         function nr = getMaxNodeNumber(obj)
