@@ -1,37 +1,50 @@
-%% Stability Analysis and Control Synthesis for Switched Systems: 
-% Simulation
+%% Stability Analysis and Control Synthesis for Switched Systems: Simulation
 clear; clc;
-% run('libs/truetime-2.0/init_truetime.m')
-%addpath('framework/')
 
+% Initialize TrueTime (Uncomment if required)
+% run('libs/truetime-2.0/init_truetime.m')
+
+% Simulation parameters
 Ac = [0,1;0,0];
 bc = [0;1];
 cc = [1,0];
-Td = 5e-3;
+samplingTime = 5e-3; % Td
 
-tsim = 0.05*10;
+simulationTime = 0.05 * 10;
+delaySteps = 8;
+initialState = [0.2; 0];
 
-d = 8;
-x0 = [0.2;0];
+% Define system
+stateSize = size(bc,1);
+inputSize = size(bc,2);
+system = ss(Ac, bc, eye(stateSize), zeros(stateSize,1));
+discreteSystem = c2d(system, samplingTime);
 
-n = size(bc,1); m = size(bc,2);
-sys = ss(Ac,bc,eye(n),zeros(n,1));
-sys_d = c2d(sys,Td);
-%%
-ncsPlant_obj = NcsPlant(sys,d,Td); 
-%%
-NCS = NcsStructure(ncsPlant_obj,'tsim',tsim); 
-sim('C_sim')
+%% Initialize NCS plant
+ncsPlant = NcsPlant(system, delaySteps, samplingTime);
 
-%%
-tau = NCS.tau_ca_node.tau';
-time_new = [0:Td:1]'+tau(1:201);
-[time_new,ind] = sort(time_new);
-value = [1:201]';
+controlParams.StateFeedbackStrategy.k = [10, 20, 30];
 
-figure(1)
-clf; grid on; hold on
-stairs(0:Td:1,1:201)
-stairs(time_new,value(ind))
-stairs(ramp.time,ramp.data)
-xlim([0,0.3])
+%% Create Networked Control System
+ncs = NcsStructure(ncsPlant, 'simTime', simulationTime, 'controlParams', controlParams);
+
+%% Run simulation
+sim('C_sim');
+return
+%% Process delay results
+tau = ncs.tauCaNode.delayTimes';
+timeNew = (0:samplingTime:1)' + tau(1:201);
+[timeNew, sortedIndices] = sort(timeNew);
+value = (1:201)';
+
+%% Plot results
+figure(1);
+clf; grid on; hold on;
+stairs(0:samplingTime:1, 1:201, 'LineWidth', 1.2);
+stairs(timeNew, value(sortedIndices), 'LineWidth', 1.2);
+stairs(ramp.time, ramp.data, 'LineWidth', 1.2);
+xlim([0, 0.3]);
+xlabel('Time (s)');
+ylabel('Step Response');
+legend('Original', 'Sorted Delays', 'Ramp Data');
+title('System Response with Network Delays');

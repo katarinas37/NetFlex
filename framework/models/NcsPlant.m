@@ -1,99 +1,125 @@
-classdef NcsPlant <handle
-    %NCSPROBLEM Specification of the networked control systems properties.
+classdef NcsPlant < handle
+    % NcsPlant Specification of the networked control system properties.
+    % Stores the plant model and its discretized version, handling delays.
     %
-    %obj = NcsProblem(sys, delay_steps, Td, pert_limits, Name, Value)
-    %   sys:          Continuous state space model of the plant
-    %   delay_steps:  Number of delay steps for each input channel if the networked control system is spatially 
-    %                 distributed, or one single number of delay steps for centralized implementation
-    %   Td:           Sampling time
-    % Optional name/value pairs:
-    %   'u_sat_limits': Saturation limits of the control signal (default: [-inf inf; ...])
+    % Properties:
+    %   - system (ss) : Continuous-time state-space model of the plant.
+    %   - stateSize (double) : System order.
+    %   - inputSize (double) : Number of control inputs.
+    %   - samplingTime (double) : Sampling time.
+    %   - delaySteps (double) : Delay steps for each input channel.
+    %   - controlSaturationLimits (double) : Input saturation limits.
+    %   - discreteSystem (ss, Dependent) : Discretized system.
+    %   - liftedSystem (ss, Dependent) : Lifted model with controller input.
     %
-    %See also: ss
+    % Methods:
+    %   - NcsPlant(system, delaySteps, samplingTime, 'controlSaturationLimits', [limits])
+    %   - computeLiftedModel() : Computes the lifted model.
+
+    properties (SetAccess = private)
+        stateSize double % System order
+        inputSize double % Input size
+        samplingTime double % Sampling time
+        delaySteps double % Number of delay steps per input channel
+        controlSaturationLimits double % Input saturation limits
+        system % Continuous-time state-space model
+    end
     
-    properties (Access = private)
-        n % System order
-        m % Input size
-        Td % Sampling time
-        deltaBar % Number of delays for each input channel
-        sys_lifted % Lifted model with controller input
-        sys_d % discrete time model (without delay)
-        u_sat_limits
-        sys %Continuous state space model of the plant
+    properties (Dependent)
+        discreteSystem % Discrete-time model
+        liftedSystem % Lifted model including delays
     end
     
     methods
-        function obj = NcsPlant(sys, deltaBar, Td, varargin)
-            % obj = NcsProblem(sys, delay_steps, Td, pert_limits)
-            % sys:          Continuous state space model of the plant
-            % delay_steps:  Number of delay steps for each channel if spatially distributed or one single for centralized implementation
-            % Td:           Sampling time
+        function obj = NcsPlant(system, delaySteps, samplingTime, varargin)
+            % NcsPlant Constructor for a networked control system plant.
+            %
+            % Example:
+            %   system = ss(A, B, C, D);
+            %   plant = NcsPlant(system, 3, 0.1, 'controlSaturationLimits', [-10 10]);
             
+            % Input parsing and validation
             p = inputParser;
-            p.addRequired('sys', @(x) isa(x,'ss'));
-            p.addRequired('deltaBar', @(x) validateattributes(x,{'double'}, {'integer', 'positive', 'finite', 'real'}));
-            p.addRequired('Td',@(x) validateattributes(x,{'double'},{'positive', 'finite', 'real', 'scalar'}));
-            p.addParameter('u_sat_limits', nan, @(x) validateattributes(x,{'double'},{'real'}));
-            p.parse(sys, deltaBar, Td, varargin{:});
-            obj.sys = p.Results.sys;
+            p.addRequired('system', @(x) isa(x, 'ss')); % Ensure 'system' is a state-space object
+            p.addRequired('delaySteps', @(x) validateattributes(x, {'double'}, {'integer', 'positive', 'finite', 'real'}));
+            p.addRequired('samplingTime', @(x) validateattributes(x, {'double'}, {'positive', 'finite', 'real', 'scalar'}));
+            p.addParameter('controlSaturationLimits', nan, @(x) validateattributes(x, {'double'}, {'real'}));
+            p.parse(system, delaySteps, samplingTime, varargin{:});
+            
+            % Assign properties
+            obj.system = p.Results.system;
+            obj.stateSize = size(obj.system.A, 1);
+            obj.inputSize = size(obj.system.B, 2);
+            obj.samplingTime = p.Results.samplingTime;
+            obj.delaySteps = p.Results.delaySteps;
 
-            if ~isa(obj.sys, 'ss')
-            error('sys must be a state-space object.');
+            % Validate delaySteps size
+            if numel(delaySteps) ~= 1 && numel(delaySteps) ~= obj.inputSize
+                error('NcsPlant:InvalidDelaySteps', ...
+                      'Provide delay steps for each input (%d inputs) or a single value.', obj.inputSize);
             end
-            
-            sys_d = c2d(obj.sys,Td);
-            obj.n = size(obj.sys.a,1);
-            obj.m = size(obj.sys.b,2);
-            obj.Td = p.Results.Td;
-            
-            u_sat_limits = p.Results.u_sat_limits;
-            
-            if(isnan(u_sat_limits))
-                u_sat_limits = inf*repmat([-1 1],obj.m,1);
-            end
-            
-            if(size(u_sat_limits,1) ~= obj.m)
-                error('Please provide a saturation limit for each input channel')
-            end
-            if(size(u_sat_limits,2) > 2)
-                error('Please provide just upper and lower bound of the input saturation for each input channel')
-            end
-            if(size(u_sat_limits,2) == 1)
-                u_sat_limits = abs(u_sat_limits).*repmat([-1 1],obj.m,1);
-            end
-            obj.u_sat_limits = u_sat_limits;
-            if(numel(deltaBar)~=1 && numel(deltaBar) ~= obj.m)
-                error('Please specify the number of delay steps for each input or one single number of delay steps for centralized control scheme')
-            end
-            obj.deltaBar = p.Results.deltaBar;
 
-            obj.sys_d = sys_d;
-
-            obj.getLiftedModel(obj.deltaBar);
+            % Handle control saturation limits
+            obj.controlSaturationLimits = obj.processControlSaturationLimits(p.Results.controlSaturationLimits);
         end
         
-        function getLiftedModel(obj,deltaBar)
+        function discreteSystem = get.discreteSystem(obj)
+            % Computes the discrete-time version of the plant
+            discreteSystem = c2d(obj.system, obj.samplingTime);
+        end
 
-            deltaBar_each_channel = repmat(deltaBar,1,obj.m);
-            %getLiftedModel derive the lifted NCS model
-            cumdel = [0; cumsum(deltaBar_each_channel)];
-            theta = cumdel(end);
-            Ad = obj.sys_d.a;
-            Bd = obj.sys_d.b;
-            Ahat = [Ad;zeros(theta,obj.n)];
+        function liftedSystem = get.liftedSystem(obj)
+            % Computes and returns the lifted state-space model
+            liftedSystem = obj.computeLiftedModel();
+        end
+        
+        function controlSaturationLimits = processControlSaturationLimits(obj, controlSaturationLimits)
+            % Processes and validates input saturation limits.
+            if isnan(controlSaturationLimits)
+                controlSaturationLimits = inf * repmat([-1 1], obj.inputSize, 1);
+            elseif size(controlSaturationLimits, 1) ~= obj.inputSize
+                error('NcsPlant:InvalidSaturationLimits', ...
+                      'Provide saturation limits for each input channel (%d inputs).', obj.inputSize);
+            elseif size(controlSaturationLimits, 2) > 2
+                error('NcsPlant:InvalidSaturationLimits', ...
+                      'Provide only upper and lower bounds for each input channel.');
+            elseif size(controlSaturationLimits, 2) == 1
+                controlSaturationLimits = abs(controlSaturationLimits) .* repmat([-1 1], obj.inputSize, 1);
+            end
+        end
+
+        function liftedSystem = computeLiftedModel(obj)
+            % Computes the lifted NCS model
+            delayStepsEachChannel = repmat(obj.delaySteps, 1, obj.inputSize);
+            cumulativeDelay = [0; cumsum(delayStepsEachChannel)];
+            totalDelay = cumulativeDelay(end);
+            
+            Ad = obj.discreteSystem.A;
+            Bd = obj.discreteSystem.B;
+            Ahat = [Ad; zeros(totalDelay, obj.stateSize)];
             Bhat = [];
             Bfhat = [];
-            for i = 1:obj.m
-                currdel = deltaBar_each_channel(i);
-                state_line = [zeros(obj.n,currdel-1) Bd(:,i)];
-                toadd = [state_line; zeros(cumdel(i)+1,currdel); [eye(currdel-1) zeros(currdel-1,1)]; zeros(theta-cumdel(i+1),currdel)];
-                Ahat = [Ahat toadd];
-                Bhat = [Bhat [zeros(obj.n+cumdel(i),1); 1; zeros(theta-cumdel(i)-1,1)]];
-                Bfhat = [Bfhat [Bd(:,i); zeros(theta,1)]];
+            
+            for i = 1:obj.inputSize
+                currentDelay = delayStepsEachChannel(i);
+                stateLine = [zeros(obj.stateSize, currentDelay-1), Bd(:, i)];
+                toAdd = [stateLine; zeros(cumulativeDelay(i)+1, currentDelay); [eye(currentDelay-1), zeros(currentDelay-1,1)]; zeros(totalDelay - cumulativeDelay(i+1), currentDelay)];
+                Ahat = [Ahat, toAdd];
+                Bhat = [Bhat, [zeros(obj.stateSize + cumulativeDelay(i), 1); 1; zeros(totalDelay - cumulativeDelay(i) - 1, 1)]];
+                Bfhat = [Bfhat, [Bd(:, i); zeros(totalDelay, 1)]];
             end
             
-            obj.sys_lifted = ss(Ahat,Bhat,eye(obj.n+theta), zeros(obj.n+theta,obj.m),obj.Td);
+            liftedSystem = ss(Ahat, Bhat, eye(obj.stateSize + totalDelay), zeros(obj.stateSize + totalDelay, obj.inputSize), obj.samplingTime);
+        end
+
+        function samplingTime = get.samplingTime(obj)
+            % get.samplingTime Returns the sampling time of the plant.
+            samplingTime = obj.samplingTime;
+        end
+
+        function stateSize = get.stateSize(obj)
+            % get.stateSize Returns the state size of the plant.
+            stateSize = obj.stateSize;
         end
     end
 end
-

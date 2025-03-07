@@ -1,96 +1,91 @@
 classdef MsgBuffer < handle
-    %BUFFER Summary of this class goes here
-    %   Detailed explanation goes here
-    %See also: NetworkMsg, BufferElement
-    
-    properties (SetAccess=private)
-        elements 
-    end
+    % MsgBuffer Class for storing and managing network messages.
+    % Provides efficient message queuing operations for network communication.
+    %
+    % Methods:
+    %   - pushTop(element)    : Add element to the top (highest priority)
+    %   - pushBack(element)   : Add element to the back (FIFO)
+    %   - popTop()            : Remove and return the highest priority element
+    %   - clear()             : Reset the buffer
+    %   - sortBuffer()        : Sort elements by transmission time
+    %   - getElementCount()   : Returns the number of elements
+    %   - getTransmitTimes()  : Returns an array of transmit times
+    %   - getTop()            : Returns the top element without removing it
 
+    properties (Access = private)
+        elements % Internal storage for buffer elements
+    end
     
     properties (Dependent)
-        transmit_times %Get transmit times of all buffered elements
-        elementCount %get the number of elements currently in the buffer
+        elementCount % Returns the number of buffered elements
+        transmitTimes % Returns an array of all transmit times
     end
     
     methods
         function obj = MsgBuffer()
-            %BUFFER Construct an empty buffer
+            % Constructor: Initializes an empty buffer.
             obj.elements = {};
         end
         
-        function obj = push_top(obj,element)
-            %add element to top
-            if(~isa(element,'BufferElement'))
-                error('Add only BufferElements to MsgBuffer')
+        function pushTop(obj, element)
+            % Adds an element to the top of the queue (highest priority).
+            if ~isa(element, 'BufferElement')
+                error('MsgBuffer:InvalidType', 'Only BufferElement objects can be added.');
             end
-            obj.elements(2:end+1) = obj.elements;
-            obj.elements(1) = {element};
+            obj.elements = [{element}, obj.elements]; % Insert at front
         end
         
-        function obj = push_back(obj,element)
-            %add element to back
-                        if(~isa(element,'BufferElement'))
-                error('Add only BufferElements to MsgBuffer')
+        function pushBack(obj, element)
+            % Adds an element to the back of the queue (FIFO behavior).
+            if ~isa(element, 'BufferElement')
+                error('MsgBuffer:InvalidType', 'Only BufferElement objects can be added.');
             end
-            obj.elements(end+1) = {element};
+            obj.elements{end + 1} = element;
+        end
+        
+        function ret = getTop(obj)
+            % Returns the top element without removing it.
+            if obj.elementCount > 0
+                ret = obj.elements{1};
+            else
+                error('MsgBuffer:EmptyBuffer', 'Cannot access top element, buffer is empty.');
+            end
+        end
+        
+        function popTop(obj)
+            % Removes the top element from the queue.
+            if obj.elementCount > 0
+                obj.elements(1) = [];
+            else
+                warning('MsgBuffer:EmptyBuffer', 'Buffer is already empty.');
+            end
+        end
+        
+        function clear(obj)
+            % Clears all elements from the buffer.
+            obj.elements = {};
+        end
+        
+        function sortBuffer(obj)
+            % Sorts elements by transmit time (ascending order).
+            if obj.elementCount > 1
+                [~, idx] = sort(obj.transmitTimes());
+                obj.elements = obj.elements(idx);
+            end
         end
         
         function ret = get.elementCount(obj)
-            %get specific element
+            % Returns the number of elements in the buffer.
             ret = numel(obj.elements);
         end
 
-        function ret = get.transmit_times(obj)
-            %get all transmit times
-            ret = cellfun(@(x) x.transmit_time,obj.elements);
-        end
-        
-        function ret = top(obj)
-            %get the top element
-            ret = obj.elements{1};
-        end
-        
-        function obj = clear(obj)
-            %clear the buffer
-            obj.elements = {};
-        end
-        
-        function obj = pop_top(obj)
-            %remove and return the top element
-            if obj.elementCount
-                obj.elements(1) = [];
-            else 
-                obj.elements = {};
-            end
-        end
-        
-        function obj=sort(obj)
-            %sort elements by transmit times
-           [~,idx] = sort(obj.transmit_times);
-           obj.elements = obj.elements(idx);
-        end
-        
-        function ret = subsref(obj,idx)
-            %access elements using brackets
-            if(strcmp(idx(1).type,'()')|| strcmp(idx(1).type,'{}'))
-                ret = subsref(obj.elements, idx);
+        function ret = get.transmitTimes(obj)
+            % Returns an array of transmit times for all elements.
+            if obj.elementCount > 0
+                ret = cellfun(@(x) x.transmitTime, obj.elements);
             else
-                ret = builtin('subsref',obj,idx);
+                ret = [];
             end
         end
-        
-        function ret = subsasgn(obj,S,B)
-            %set elements using brackets
-            if(strcmp(S(1).type,'()')|| strcmp(S(1).type,'{}'))
-                obj.elements = subsasgn(obj.elements,S,{B});
-                ret = obj;
-            else
-                ret = builtin('subsasgn',obj,S,B);
-            end
-                
-        end
-
     end
 end
-

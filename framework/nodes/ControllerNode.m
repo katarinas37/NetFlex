@@ -1,73 +1,105 @@
 classdef ControllerNode < NetworkNode
-    %ISM_CONTROLLER Sets up the truetime kernel for a ISMC as in CDC2019
-    %   See also NetworkNode, SmcControlLaw, ExplicitSTA, MatchingSTA, linearNominalController
-    
-    properties
-        ncsProblem_obj NcsPlant
-        taskname % name of the truetime task
-        uk_d_vec % delayed control signals
-        xik_hist % lifted states [xk; uk-1; uk-2; ... ; uk_deltabar]
-        uk_hist          % control signals sent by the controller
-        uk_SendTime_hist % time instants at wchich controller sends
+    % ControllerNode Sets up the TrueTime kernel for a controller.
+    % Implements control logic for a networked control system.
+    %
+    % Properties:
+    %   - ncsPlant (NcsPlant) : The networked control system plant.
+    %   - taskName (string) : Name of the TrueTime task.
+    %   - delayedControlSignals (double array) : Delayed control signal history.
+    %   - liftedStateHistory (double matrix) : Lifted states [xk; uk-1; uk-2; ... ; uk_deltabar].
+    %   - controlSignalHistory (double array) : Control signals sent by the controller.
+    %   - sendTimeHistory (double array) : Time instants when the controller sends signals.
+    %
+    % Methods:
+    %   - ControllerNode(nextnode, nodenumber, ncsPlant)
+    %   - init() : Initializes the TrueTime kernel and controller.
+    %   - evaluate(segment) : Executes the control logic.
+
+    properties 
+        ncsPlant NcsPlant % Networked control system plant
+        taskName char % Name of the TrueTime task
+        delayedControlSignals double % Delayed control signals
+        liftedStateHistory double % Lifted states history
+        controlSignalHistory double % Control signals sent
+        sendTimeHistory double % Time instants when signals were sent
+        controlStrategy % Control strategy used in the node
+        controlParams % Control parameters for the strategy
     end
     
     methods
-        function obj = ControllerNode(nextnode, nodenumber, ncsPlant_obj) %, miT, smc_controller, nominal_controller)
-            % ISM_ControllerNode(nextnode, nodenumber, ncsProblem_obj, miT, smc_controller, nominal_controller)
-            % nextnode...Nodes which should receive messages from this node
-            % nodenumber...Unique number of this node in the network
-            % ncsProblem_obj...Object specifying the networked control system
-            m = 1;
-            obj@NetworkNode(m,0,nextnode,nodenumber);
-            obj.taskname = sprintf('controller_task_node%d',nodenumber);
+        function obj = ControllerNode(nextnode, nodenumber, ncsPlant, controlParams, strategyClass)
+            % ControllerNode Constructor for a controller node in the network.
+            %
+            % Example:
+            %   controller = ControllerNode(2, 1, ncsPlant);
+            
+            % Initialize NetworkNode
+            obj@NetworkNode(ncsPlant.inputSize, 0, nextnode, nodenumber);
+            obj.generateTaskName(nodenumber);
 
-            obj.ncsProblem_obj = ncsPlant_obj;
-            obj.uk_d_vec = zeros(obj.ncsProblem_obj.deltaBar,1);
+            obj.ncsPlant = ncsPlant;
+            obj.delayedControlSignals = zeros(obj.ncsPlant.delaySteps, 1);
+            obj.controlParams = controlParams;
+
+            % Validate controlParams and instantiate the strategy
+            if isstruct(controlParams)
+                if exist(strategyClass, 'class') == 8 % Check if class exists
+                    obj.controlStrategy = feval(strategyClass); % Instantiate object dynamically
+                else
+                    error('ControllerNode:InvalidStrategy', 'Control strategy "%s" class does not exist.', strategyClass);
+                end
+            else
+                error('ControllerNode:MissingStrategy', 'controlParams must contain a valid strategy field.');
+            end
         end
         
         function init(obj)
-            %init function which creates the evaluate task and resets the states
-            obj.uk_d_vec = zeros(obj.ncsProblem_obj.deltaBar,1);
-            obj.uk_hist = [];
-            obj.uk_SendTime_hist = [];
-            obj.xik_hist = [];
+            % init Initializes the TrueTime kernel and resets controller states.
+            
+            obj.delayedControlSignals = zeros(obj.ncsPlant.delaySteps, 1);
+            obj.controlSignalHistory = [];
+            obj.sendTimeHistory = [];
+            obj.liftedStateHistory = [];
 
             % Initialize TrueTime kernel
-            ttInitKernel('prioDM');   % deadline-monotonic scheduling
+            ttInitKernel('prioDM'); % Deadline-monotonic scheduling
             
-            % Sporadic controller task, activated by arriving network message
-            deadline = 0.1;  % maximal time for calc
-            ttCreateTask(obj.taskname, deadline, obj.taskWrapperName, @obj.evaluate);
-            ttAttachNetworkHandler(obj.taskname)   
+            % Create a sporadic controller task activated by incoming network messages
+            deadline = 0.1; % Maximum execution time
+            ttCreateTask(obj.taskName, deadline, obj.taskWrapperName, @obj.evaluate);
+            ttAttachNetworkHandler(obj.taskName);
         end
         
-        function [exectime, obj] = evaluate(obj,seg)
-            %Evaluate the control laws
+        function [executionTime, obj] = evaluate(obj, seg)
+            % evaluate Executes the control logic when a network message arrives.
             
-            rx_data = ttGetMsg() ;% get new message
-            timestamp = ttCurrentTime;
+            rxData = ttGetMsg(); % Retrieve incoming network message
+            timestamp = ttCurrentTime();
 
-            %create lifted states
-            xik = [rx_data.data(:); obj.uk_d_vec];
-            obj.xik_hist = [obj.xik_hist; xik'];
+            % Construct lifted states
+            liftedState = [rxData.data(:); obj.delayedControlSignals];
+            obj.liftedStateHistory = [obj.liftedStateHistory; liftedState'];
 
-            % ------------ implement control methods ----------------------
-            uk = rx_data.seq;
-            % -------------------------------------------------------------
+            % Execute selected control strategy dynamically
+            controlSignal = obj.controlStrategy.execute(rxData, obj.controlParams, obj.ncsPlant);
 
-            obj.uk_hist = [obj.uk_hist; uk];
-            obj.uk_SendTime_hist = [obj.uk_SendTime_hist; timestamp];
+            obj.controlSignalHistory = [obj.controlSignalHistory; controlSignal];
+            obj.sendTimeHistory = [obj.sendTimeHistory; timestamp];
 
-            % update delayes control signals for lifted states
-            obj.uk_d_vec = [uk; obj.uk_d_vec(1:end-1)];
+            % Update delayed control signal history
+            obj.delayedControlSignals = [controlSignal; obj.delayedControlSignals(1:end-1)];
 
+            % Transmit results to the next node
+            txMsg = NetworkMsg(rxData.samplingTimestamp, timestamp, controlSignal, rxData.seq);
+            ttSendMsg(obj.nextnode, txMsg, 80);
+            executionTime = -1;
+            ttAnalogOutVec(1:numel(txMsg.data),txMsg.data);
 
-            %Transmit results to next nodes
-            tx_msg = NetworkMsg(rx_data.sampling_timestamp,timestamp,uk, rx_data.seq);
-            ttSendMsg(obj.nextnode, tx_msg, 80); 
-            ttCurrentTime;
-            exectime = -1;
+        end
+
+        function generateTaskName(obj, nodeNumber)
+            % setTaskName Sets the task name for the controller node.
+            obj.taskName = ['controllerTaskNode', num2str(nodeNumber)];
         end
     end
 end
-

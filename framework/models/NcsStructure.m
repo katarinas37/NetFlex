@@ -1,90 +1,122 @@
 classdef NcsStructure < handle
-    % NCS_ISMC: Builder class for spatially distributed networked control systems. It designs all necessary
-    % components for a spatially distribued networked control system.
+    % NcsStructure Builder class for spatially distributed networked control systems.
+    % Designs all necessary components for a networked control system.
     %
-    % obj = NCS_ISMC(ncsProblem_obj, smc_controller_classname, Name, Value)
-    % ncsProblem_obj:           NcsProblem object
+    % Properties:
+    %   - ncsPlant (NcsPlant) : Specifies the control loop (plant, delays, etc.).
+    %   - sensorNode (SensorNode) : Sensor node object.
+    %   - tauCaNode (NetworkDelay) : Variable delay object from controller to actuator.
+    %   - controllerNode (ControllerNode) : Controller node object.
+    %   - simTime (double) : Largest simulation time.
+    %   - allNodes (cell) [Dependent] : Returns all network nodes.
+    %   - results (struct) [Dependent] : Contains simulation results.
     %
-    % Optional name/value pairs:
-    % 'tsim':  Specify the largest simulation time (default: 5000*Td)
-    %
-    %See also: NetworkDelay, NetworkOrderer, ISM_ControllerNode, SensorNode, NetworkBuffer, NcsProblem
+    % Methods:
+    %   - NcsStructure(ncsPlant, 'simTime', value)
+    %   - getMaxNodeNumber() : Returns the highest node number.
+    %   - generateDelays() : Generates random delays.
+    %   - get.results() : Retrieves the simulation results.
 
-    properties (Access = private)
-        ncsPlant NcsPlant %Object which specifies the control loop (plant, delays, ...)
-        sensor_node SensorNode %Sensor Node Object
-        simtime %Largest simulation time
-        tau_ca_node %Cell array of variable delay objects from controller to actuator
-        controller_node % Cell array of integral sliding mode controller node objects
+    properties (SetAccess = public)
+        ncsPlant NcsPlant % NCS plant specification
+        sensorNode SensorNode % Sensor node object
+        simTime double % Largest simulation time
+        tauCaNode NetworkDelay % Variable delay object from controller to actuator
+        controllerNode ControllerNode % Controller node object
+        controlParams struct % Control parameters for the controller
     end
     
     properties (Dependent)
-        allnodes %Cell array of all nodes
-        Results
+        allnodes % Cell array of all nodes
+        results % Simulation results
     end
     
     properties (Constant)
-        sensor_nodenumber=1 %Nodenumber of sensor and also lowest nodenumber
+        SENSOR_NODE_NUMBER = 1 % Sensor node ID (lowest node number)
     end
     
     methods
-        function obj = NcsStructure(ncsPlant_obj, varargin)
+        function obj = NcsStructure(ncsPlant, varargin)
+            % NcsStructure Constructor for a spatially distributed NCS structure.
+            %
+            % Example:
+            %   ncs = NcsPlant(sys, 3, 0.1);
+            %   structure = NcsStructure(ncs, 'simTime', 10);
             
+            % Validate input type
+            if ~isa(ncsPlant, 'NcsPlant')
+                error('NcsStructure:InvalidPlant', 'ncsPlant must be an instance of NcsPlant.');
+            end
+            
+            % Input parsing
             p = inputParser;
-            addRequired(p,'ncsPlant_obj',@(x) isa(x,'NcsPlant'));
-            addParameter(p,'tsim', 5000*ncsPlant_obj.Td , @(x) validateattributes(x,{'numeric'}, {'scalar'}));
+            addParameter(p, 'simTime', 5000 * ncsPlant.samplingTime(), @(x) validateattributes(x, {'numeric'}, {'scalar', 'positive'}));
+            addParameter(p, 'controlParams', struct(), @(x) isstruct(x)); % Allow empty struct
+            parse(p, varargin{:});
 
-            parse(p,ncsPlant_obj, varargin{:});
-            obj.ncsPlant = p.Results.ncsPlant_obj;
-            obj.simtime = p.Results.tsim;
+            % Assign properties
+            obj.ncsPlant = ncsPlant;
+            obj.simTime = p.Results.simTime;
+            obj.controlParams = p.Results.controlParams;
             
-            % Generate nodes - depends on the structure
-            act_nodenumber = obj.sensor_nodenumber+1;
-            controller_nodenumber = act_nodenumber;
-            delay_ca_nodenumber = act_nodenumber + 1;
-
-
-            tau_ca = obj.generateDelays();
-
-            obj.controller_node = ControllerNode(delay_ca_nodenumber, controller_nodenumber, obj.ncsPlant);
-            obj.tau_ca_node =  NetworkDelay(1, 0, delay_ca_nodenumber, tau_ca);
-            obj.sensor_node = SensorNode(ncsPlant_obj.n,controller_nodenumber,obj.sensor_nodenumber,ncsPlant_obj.Td,obj.simtime);
+            % Generate network nodes
+            obj.initializeNodes();
         end
 
-        function [tau_ca] = generateDelays(obj)
-            %Generate random delays
-            Td = obj.ncsPlant.Td;
+        function initializeNodes(obj)
+            % Initializes the sensor, controller, and delay nodes.
+            actNodeNumber = obj.SENSOR_NODE_NUMBER + 1;
+            controllerNodeNumber = actNodeNumber;
+            delayCaNodeNumber = actNodeNumber + 1;
 
-            load networkeffects.mat
-            tau_ca = ceil(tau_ca/1e-4)*1e-4;
+            tauCa = obj.generateDelays();
+                
+            % Create nodes
+            obj.controllerNode = ControllerNode(delayCaNodeNumber, controllerNodeNumber, obj.ncsPlant, obj.controlParams.('StateFeedbackStrategy'), 'StateFeedbackStrategy');
+            obj.tauCaNode = NetworkDelay(1, 0, delayCaNodeNumber, tauCa);
+            obj.sensorNode = SensorNode(obj.ncsPlant.stateSize(), controllerNodeNumber, ...
+                obj.SENSOR_NODE_NUMBER, obj.ncsPlant.samplingTime(), obj.simTime);
         end
 
-        function out = get.allnodes(obj)
-            %returns a cell array of all nodes
-           out = [{obj.sensor_node}; {obj.tau_ca_node}; {obj.controller_node}];
+        function tauCa = generateDelays(obj)
+            % Generates random delays using network effect data.
+            Td = obj.ncsPlant.samplingTime();
+            
+            % Check if the external file exists before loading
+            if exist('networkeffects.mat', 'file') ~= 2
+                error('NcsStructure:MissingFile', 'File "networkeffects.mat" not found.');
+            end
+
+            load('networkeffects.mat', 'tau_ca'); % Load only required variable
+            
+            % Ensure tauCa is properly scaled
+            tauCa = ceil(tau_ca / 1e-4) * 1e-4;
         end
+
+        function allNodes = get.allnodes(obj)
+            % Returns a cell array of all nodes in the NCS.
+            allNodes = [{obj.sensorNode}; {obj.controllerNode}; {obj.tauCaNode}];
+        end
+
         function nr = getMaxNodeNumber(obj)
             %returns the maximum node number
             all_nodenumbers = cellfun(@(x) x.nodenumber,obj.allnodes);
             nr = max(all_nodenumbers);
         end
         
-        function results = get.Results(obj)
+        function results = get.results(obj)
+            % Retrieves simulation results in a structured format.
             
-            numsamples = length(obj.controller_node.uk_hist);
-            timevector = (0:(numsamples-1))*obj.ncsPlant.Td;
-                
-            results.uk = timeseries(obj.controller_node.uk_hist, timevector);
+            % Controller output signal
+            numSamples = length(obj.controllerNode.ukHist);
+            timeVector = (0:(numSamples - 1)) * obj.ncsPlant.samplingTime();
+            results.uk = timeseries(obj.controllerNode.ukHist, timeVector);
             results.uk.DataInfo.Interpolation = 'zoh';
 
-
-            numsamples = length(obj.controller_node.uk_hist);
-            timevector = (0:(numsamples-1))*obj.ncsPlant.Td;
-
-            results.tau_ca = timeseries(cell2mat(cellfun(@(x) x.tau,obj.tau_ca_node,'uni',false)'),timevector);
-            results.tau_ca.DataInfo.Interpolation = 'zoh';
-
+            % Network delay times
+            tauValues = cell2mat(cellfun(@(x) x.tau, obj.tauCaNode, 'UniformOutput', false)');
+            results.tauCa = timeseries(tauValues, timeVector);
+            results.tauCa.DataInfo.Interpolation = 'zoh';
         end
     end
 end
-

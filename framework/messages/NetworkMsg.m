@@ -1,31 +1,42 @@
 classdef NetworkMsg
-    %NETWORKMSG Object which is sent through the network containing all neccessary 
-    %information
+    % NetworkMsg Represents a message sent through the network.
+    % Stores measurement data along with timestamping and sequencing information.
     %
-    % Msg = NetworkMsg(sampling_timestamp, last_transmit_timestamp, data, seq)
-    %  sampling_timestamp...timestamp of the sensor
-    %  last_transmit_timestamp...timestamp when the message was last transmitted
-    %  data...measurement data
-    %  seq...sequence number
-    properties
-        data %measurement data
-        sampling_timestamp %timestamp of the sensor
-        last_transmit_timestamp %timestamp when the message was last transmitted
-        seq %sequence number
+    % Properties:
+    %   - samplingTimestamp (double) : Timestamp of the sensor at message creation.
+    %   - lastTransmitTimestamp (double) : Timestamp of the last transmission.
+    %   - data (double) : Measurement data stored as a numeric vector/matrix.
+    %   - seq (uint32) : Sequence number of the message.
+    %
+    % Methods:
+    %   - NetworkMsg(samplingTimestamp, lastTransmitTimestamp, data, seq) 
+    %     : Constructs a network message with required attributes.
+    
+    properties (SetAccess = public) % Prevent modification after initialization
+        samplingTimestamp double % Timestamp of the sensor
+        lastTransmitTimestamp double % Last time message was transmitted
+        data double % Measurement data (vector/matrix)
+        seq uint32 % Sequence number
     end
     
     methods
-        function obj = NetworkMsg(sampling_timestamp, last_transmit_timestamp, data, seq)
-            %NETWORKMSG Construct an instance of this class
-            %sampling_timestamp...timestamp of the sensor
-            %last_transmit_timestamp...timestamp when the message was transmitted the last time
-            %data...measurement data
-            %seq...sequence number
-            obj.sampling_timestamp = sampling_timestamp;
-            obj.last_transmit_timestamp = last_transmit_timestamp;
+        function obj = NetworkMsg(samplingTimestamp, lastTransmitTimestamp, data, seq)
+            % NetworkMsg Constructor for a network message.
+            %
+            % Example:
+            %   msg = NetworkMsg(0.1, 0.2, [1, 2, 3], 1);
+            
+            % Input validation
+            validateattributes(samplingTimestamp, {'numeric'}, {'scalar', 'real', 'nonnegative'}, mfilename, 'samplingTimestamp');
+            validateattributes(lastTransmitTimestamp, {'numeric'}, {'scalar', 'real', 'nonnegative'}, mfilename, 'lastTransmitTimestamp');
+            validateattributes(data, {'numeric'}, {'nonempty', 'real', 'finite'}, mfilename, 'data');
+            validateattributes(seq, {'numeric'}, {'scalar', 'integer', 'nonnegative'}, mfilename, 'seq');
+
+            % Assign properties
+            obj.samplingTimestamp = samplingTimestamp;
+            obj.lastTransmitTimestamp = lastTransmitTimestamp;
             obj.data = data;
-            obj.seq = seq;
+            obj.seq = uint32(seq);
         end
     end
 end
-

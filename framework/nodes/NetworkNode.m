@@ -1,35 +1,84 @@
 classdef NetworkNode < handle
-    %NETWORKNODE Abstract class for configuring the truetime kernel blocks
-    
+    % NetworkNode Abstract class for configuring TrueTime kernel blocks.
+    %
+    % Properties:
+    %   - Nout (double) : Number of output elements.
+    %   - Nin (double) : Number of input elements.
+    %   - nextnode (double) : Node numbers that should receive messages from this node.
+    %   - nodenumber (double) : Unique number of this node in the network.
+    %
+    % Constants:
+    %   - TASK_WRAPPER_NAME (string) : Name of the function called for tasks.
+    %   - INIT_FUNCTION_WRAPPER (string) : Name of the initialization function wrapper.
+    %
+    % Methods:
+    %   - NetworkNode(Nout, Nin, nextnode, nodenumber) : Constructor.
+    %   - init() : Abstract method to initialize the TrueTime kernel.
+
     properties
-        Nout %number of output elements
-        Nin %number of input elements
-        nextnode %numbers of the nodes which should recieve messages of this node
-        nodenumber %unique number of the node in the network
+        Nout double % Number of output elements
+        Nin double % Number of input elements
+        nextnode double % Node numbers that should receive messages from this node
+        nodenumber double % Unique number of this node in the network
     end
     
     properties (Constant)
-        taskWrapperName = 'taskWrapper' %Name of the function which is called for tasks
-        initFunctionWrapper = 'initFctWrapper'; %Name of the init function wrapper
+        taskWrapperName = 'taskWrapper' % Name of the function called for tasks
+        initFunctionWrapper = 'initFctWrapper' % Name of the initialization function wrapper
     end
+    
     methods (Abstract)
-       init(obj) %Abstract function which initializes the truetime kernel and creates the tasks
+       init(obj) % Abstract function to initialize the TrueTime kernel and create tasks
     end
     
     methods
         function obj = NetworkNode(Nout, Nin, nextnode, nodenumber)
-            %Construct an instance of this class
-            %NetworkNode(Nout, Nin, nextnode, nodenumber)
-            %Nout...Number of output elements
-            %Nin...Number of input elements
-            %nextnode...Nodenumbers of the nodes, which should receive messages from this node
-            %nodenumber...unique number of this node in the network
+            % NetworkNode Constructor for a network node in the TrueTime simulation.
+            %
+            % Example:
+            %   node = NetworkNode(1, 1, 2, 3);
             
             obj.Nout = Nout;
+            obj.Nin = Nin;
             obj.nextnode = nextnode;
-            obj.nodenumber = nodenumber;
-            obj.Nin = Nin;            
+            obj.nodenumber = nodenumber;          
         end
+
+        % The following functions are required by TrueTime and serve as getters for various properties.
+
+        % taskWrapperName: Getter for the task wrapper name.
+        % initFunctionWrapper: Getter for the initialization function wrapper.
+        % Nout: Getter for the output count.
+        % Nin: Getter for the input count.
+        % nodenumber: Getter for the node number.
+        % function name = taskWrapperName(obj)
+        %     % getTaskWrapperName Getter for the task wrapper name.
+        %     name = obj.TASK_WRAPPER_NAME;
+        % end
+
+        % function name = initFunctionWrapper(obj)
+        %     % getInitFunctionWrapper Getter for the initialization function wrapper.
+        %     name = obj.INIT_FUNCTION_WRAPPER;
+        % end
+
+        % function count = Nout(obj)
+        %     % Nout Getter for the output count.
+        %     count = obj.Nout;
+        % end
+
+        % function count = Nin(obj)
+        %     % Nin Getter for the input count.
+        %     count = obj.Nin;
+        % end
+
+        % function number = nodenumber(obj)
+        %     % nodenumber Getter for the node number.
+        %     number = obj.nodenumber;
+        % end
+
+        % function node = nextnode(obj)
+        %     % nextnode Getter for the next node.
+        %     node = obj.nextnode;
+        % end
     end
 end
-

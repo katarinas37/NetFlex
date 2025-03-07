@@ -1,76 +1,102 @@
 classdef SensorNode < NetworkNode
-    %SENSORNODE Class to configure a truetime kernal as a sensor node
-    
+    % SensorNode Configures a TrueTime kernel as a sensor node.
+    %
+    % Properties:
+    %   - samplingTime (double) : Sampling time for periodic measurements.
+    %   - sequenceNumber (double) : Sequence number for messages.
+    %   - waitbarHandle : Handle to the simulation progress waitbar.
+    %   - simulationEnd (double) : End time of the simulation.
+    %   - updateTime (double) : Time interval for updating the waitbar.
+    %
+    % Methods:
+    %   - SensorNode(Nin, nextnode, nodenumber, samplingTime, simulationEnd)
+    %   - init() : Initializes the TrueTime kernel and sensor task.
+    %   - sampleStates(segment) : Periodically samples sensor data and sends messages.
+    %   - delete() : Cleans up resources when the object is deleted.
+
     properties
-        Td %Sampling time
-        seq %sequence number
-        waitbar_handle
-        simend
-        t_toupdate
+        samplingTime double % Sampling time for periodic measurements
+        sequenceNumber double % Sequence number for messages
+        waitbarHandle % Handle to the simulation progress waitbar
+        simulationEnd double % End time of the simulation
+        updateTime double % Time interval for updating the waitbar
     end
     
     methods
-        function obj = SensorNode(Nin, nextnode, nodenumber, Td,simend)
-            %SensorNode(Nin, nextnode, nodenumber, Td)
-            %Nin...Number of input elements
-            %nextnode...Nodenumbers of the nodes, which should receive messages from this node
-            %nodenumber...unique number of this node in the network
-            obj@NetworkNode(Nin,Nin,nextnode,nodenumber);
-            obj.Td = Td;
-            obj.seq = 1;
-            obj.simend = simend;
+        function obj = SensorNode(Nin, nextnode, nodenumber, samplingTime, simulationEnd)
+            % SensorNode Constructor for a sensor node in the network.
+            %
+            % Example:
+            %   sensor = SensorNode(2, [3,4], 1, 0.01, 10);
+            
+            % Initialize NetworkNode
+            obj@NetworkNode(Nin, Nin, nextnode, nodenumber);
+            obj.samplingTime = samplingTime;
+            obj.sequenceNumber = 1;
+            obj.simulationEnd = simulationEnd;
         end
         
         function init(obj)
-            %INIT creates a periodic task for sampling the states
-            obj.seq = 1;
+            % init Creates a periodic task for sampling sensor data.
+            
+            obj.sequenceNumber = 1;
+            
             % Initialize TrueTime kernel
-            ttInitKernel('prioDM');   % deadline-monotonic scheduling
+            ttInitKernel('prioDM'); % Deadline-monotonic scheduling
             
-            % Periodic sensor task
-            starttime = 0.0;
-            period = obj.Td;
-            ttCreatePeriodicTask(sprintf('sensor_task_node%d',obj.nodenumber), starttime, period, obj.taskWrapperName, @obj.sample_states);
+            % Create periodic sensor task
+            startTime = 0.0;
+            period = obj.samplingTime;
+            ttCreatePeriodicTask(sprintf('sensorTaskNode%d', obj.nodenumber), startTime, period, ...
+                obj.taskWrapperName, @obj.sampleStates);
             
-            obj.t_toupdate = 0;
-            if(~isempty(obj.waitbar_handle) && isvalid(obj.waitbar_handle))
-                close(obj.waitbar_handle)
+            obj.updateTime = 0;
+            
+            % Initialize the simulation progress waitbar
+            if ~isempty(obj.waitbarHandle) && isvalid(obj.waitbarHandle)
+                close(obj.waitbarHandle);
             end
-            obj.waitbar_handle = waitbar(0,'Simulation Progress');
+            obj.waitbarHandle = waitbar(0, 'Simulation Progress');
         end
         
-        function [exectime, obj] = sample_states(obj,seg)
-            %sample_states is called periodically and sends the data to the nextnodes
-            tx_data = ttAnalogInVec(1:obj.Nin);  % read data
-            ttAnalogOutVec(1:obj.Nin,tx_data);
-            timestamp = ttCurrentTime;           
-            tx_msg = NetworkMsg(timestamp,timestamp,tx_data, obj.seq);
-            obj.seq = obj.seq + 1;
-            for nextnode = obj.nextnode(:)'
+        function [executionTime, obj] = sampleStates(obj, seg)
+            % sampleStates Periodically samples sensor data and sends messages.
+            
+            sensorData = ttAnalogInVec(1:obj.Nin); % Read sensor data
+            ttAnalogOutVec(1:obj.Nin, sensorData); % Output sensor data
+            timestamp = ttCurrentTime();
+            
+            % Create and send network message
+            txMsg = NetworkMsg(timestamp, timestamp, sensorData, obj.sequenceNumber);
+            obj.sequenceNumber = obj.sequenceNumber + 1;
+            
+            for nextnode = obj.nextnode(:)' % Send to all connected nodes
                 if nextnode
-                    ttSendMsg(nextnode, tx_msg, 80);
+                    ttSendMsg(nextnode, txMsg, 80);
                 end
             end
             
-            % write data to output for plotting
+            executionTime = -1; % Indicate task completion
             
-            exectime = -1;
+            % Update simulation progress waitbar
+            progress = (ttCurrentTime() + obj.samplingTime) / obj.simulationEnd;
+            progress = min(progress, 1);
             
-            progress = (ttCurrentTime+obj.Td)/obj.simend;
-            progress = min(progress,1);
-            if(any(obj.t_toupdate <= ttCurrentTime) && isvalid(obj.waitbar_handle))
-                obj.t_toupdate = obj.t_toupdate + obj.simend/100;
-                waitbar(progress,obj.waitbar_handle)
+            if any(obj.updateTime <= ttCurrentTime()) && isvalid(obj.waitbarHandle)
+                obj.updateTime = obj.updateTime + obj.simulationEnd / 100;
+                waitbar(progress, obj.waitbarHandle);
             end
-            if(progress >= 0.99 && isvalid(obj.waitbar_handle))
-                close(obj.waitbar_handle)
+            
+            if progress >= 0.99 && isvalid(obj.waitbarHandle)
+                close(obj.waitbarHandle);
             end
         end
+        
         function delete(obj)
-           if ~isempty(obj.waitbar_handle) && isvalid(obj.waitbar_handle)
-               close(obj.waitbar_handle)
-           end
+            % delete Cleans up resources when the object is deleted.
+            if ~isempty(obj.waitbarHandle) && isvalid(obj.waitbarHandle)
+                close(obj.waitbarHandle);
+            end
         end
     end
 end
-
