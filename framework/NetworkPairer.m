@@ -55,14 +55,14 @@ classdef NetworkPairer < NetworkNode & handle
                 receivedMsg.data(:) = NaN;
             end
             
-            transSeq = round(receivedMsg.sampleTS / obj.sampleTime);
+            transseqNr= round(receivedMsg.samplingTS / obj.sampleTime);
             element = BufferElement(transSeq, receivedMsg);
             obj.bufferXk.pushTop(element);
 
             % Check if a corresponding control msg exists
             index = find(obj.bufferUk.transmitTimes == transSeq, 1);
             
-            if receivedMsg.sampleTS < 2 * obj.sampleTime
+            if receivedMsg.samplingTS < 2 * obj.sampleTime
                 % For x0 and x1, the corresponding uk signal is 0
                 receivedMsg.data(3) = 0;
                 obj.bufferXkAndUk.pushTop(BufferElement(transSeq, receivedMsg));
@@ -81,7 +81,7 @@ classdef NetworkPairer < NetworkNode & handle
         function executionTime = processControlMsg(obj, receivedMsg)
             % Processes control msgs and stores them in bufferUk
             
-            transSeq = round(receivedMsg.lastTransmitTS(1) / obj.sampleTime);
+            transseqNr= round(receivedMsg.lastTransmitTS(1) / obj.sampleTime);
             element = BufferElement(transSeq, receivedMsg);
             obj.bufferUk.pushTop(element);
             

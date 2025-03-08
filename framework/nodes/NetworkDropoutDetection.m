@@ -1,34 +1,45 @@
 classdef NetworkDropoutDetection < VariableDelay
-    % NetworkDropoutDetection: Configures the TrueTime kernel for network buffering with constant delay.
+    % NetworkDropoutDetection Configures the TrueTime kernel for data loss
+    % with implementation of the flag (e.g. Nan) when data is lost
+    % Ensure the received node implements a mechanism to delay with a
+    % chosen flag
+    % 
+    % Properties:
+    %   - dataLoss (logical array) : Binary mask indicating which packets are dropped.
+    %   - delayMax (double) : Maximum delay time for received messages.
     %
-    % This class ensures that messages experience a constant delay unless they are lost.
+    % Methods:
+    %   - NetworkDropoutDetection(outputCount, nextNode, nodeNumber, delayMax, dataLoss)
+    %   - calculateTransmitTime(receivedMsg) : Determines the transmission time for a received message.
+    %   - isMsgLost(seqNr) : Checks if a message is lost based on the dropout mask.
     %
     % See also: VariableDelay, NetworkNode
     
     properties
-        tauMax double % Maximum delay time
-        dropoutMask logical % Binary mask indicating which packets are dropped
+        dataLoss logical % Binary mask indicating which packets are dropped
+        delayMax double  % Maximum delay time
     end
     
     methods
-        function obj = NetworkDropoutDetection(nOut, nextNode, nodeNr, tauMax, dropoutMask)
-            % Constructor for NetworkDropoutDetection
+        function obj = NetworkDropoutDetection(outputCount, nextNode, nodeNumber, delayMax, dataLoss)
+            % NetworkDropoutDetection Constructs an instance of this class.
             % dropoutMask - Binary array where 1 indicates successful transmission
             
-            obj@VariableDelay(nOut, nextNode, nodeNr);
-            obj.tauMax = tauMax;
-            obj.dropoutMask = dropoutMask;
+            % Call parent constructor
+            obj@VariableDelay(outputCount, nextNode, nodeNumber);
+            obj.delayMax = delayMax;
+            obj.dataLoss = dataLoss;
         end
         
-        function [transmitTime, sentMsg] = computeTransmitTime(obj, receivedMsg)
-            % Determines the transmission time for a received msg
+        function [transmitTime, sentMsg] = calculateTransmitTime(obj, receivedMsg) 
+            % calculateTransmitTime Determines the transmission time for a received message.
             
             currentTime = ttCurrentTime();
             sentMsg = receivedMsg;
             
-            if obj.isMsgLost(receivedMsg.seq)
-                transmitTime = receivedMsg.sampleTS + obj.tauMax - 1e-6;
-                sentMsg.data = NaN; % Mark lost data
+            if obj.isMsgLost(receivedMsg.seqNr)
+                transmitTime = receivedMsg.samplingTS + obj.delayMax - 1e-6;
+                sentMsg.data = NaN; % Mark lost data with e.g. NaN
             else
                 transmitTime = currentTime;
             end
@@ -39,9 +50,9 @@ classdef NetworkDropoutDetection < VariableDelay
             end
         end
         
-        function lost = isMsgLost(obj, seq)
+        function lost = isMsgLost(obj, seqNr)
             % Checks if a msg is lost based on the dropout mask
-            lost = ~obj.dropoutMask(seq);
+            lost = ~obj.dataLoss(seqNr);
         end
     end
 end

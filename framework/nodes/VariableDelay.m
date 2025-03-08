@@ -52,7 +52,7 @@ classdef VariableDelay < NetworkNode & handle
                     
                     % Compute transmission time
                     [transmitTime, sentMsg] = obj.calculateTransmitTime(receivedMsg);
-                    sentMsg.lastTransmitTimestamp = [sentMsg.lastTransmitTimestamp(end), transmitTime];
+                    sentMsg.lastTransmitTS = [sentMsg.lastTransmitTS(end), transmitTime];
 
                     if obj.messageBuffer.elementCount == 0 || transmitTime < obj.messageBuffer.getTop().transmitTime
                         % Cancel existing job, insert new packet at the beginning, and reschedule job

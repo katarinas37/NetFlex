@@ -52,7 +52,7 @@ classdef MsgBuffer < handle
             end
         end
         
-        function popTop(obj)
+        function obj = popTop(obj)
             % Removes the top element from the queue.
             if obj.elementCount > 0
                 obj.elements(1) = [];

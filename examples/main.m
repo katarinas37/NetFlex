@@ -1,4 +1,4 @@
-%% Stability Analysis and Control Synthesis for Switched Systems: Simulation
+%% NetFlex: A Simulation Framework for Networked COntrol Systems
 clear; clc;
 
 % Initialize TrueTime (Uncomment if required)
@@ -8,9 +8,9 @@ clear; clc;
 Ac = [0,1;0,0];
 bc = [0;1];
 cc = [1,0];
-samplingTime = 5e-3; % Td
+sampleTime = 5e-3; % Td
 
-simulationTime = 0.05 * 10;
+simulationTime = 0.05 * 4;
 delaySteps = 8;
 initialState = [0.2; 0];
 
@@ -24,24 +24,24 @@ controlParams.Ramp = struct();
 controlParams.StateFeedbackStrategy.k = [10, 20];
 
 %% Initialize NCS plant
-ncsPlant = NcsPlant(system, delaySteps, samplingTime);
+ncsPlant = NcsPlant(system, delaySteps, sampleTime);
 
 %% Create Networked Control System
-ncs = NcsStructure(ncsPlant, 'simTime', simulationTime, 'controlParams', controlParams, );
+NCS = NcsStructure(ncsPlant, 'simTime', simulationTime, 'controlParams', controlParams);
 
 %% Run simulation
-sim('C_sim');
+sim('NCS_sim');
 return
 %% Process delay results
 tau = ncs.tauCaNode.delayTimes';
-timeNew = (0:samplingTime:1)' + tau(1:201);
+timeNew = (0:sampleTime:1)' + tau(1:201);
 [timeNew, sortedIndices] = sort(timeNew);
 value = (1:201)';
 
 %% Plot results
 figure(1);
 clf; grid on; hold on;
-stairs(0:samplingTime:1, 1:201, 'LineWidth', 1.2);
+stairs(0:sampleTime:1, 1:201, 'LineWidth', 1.2);
 stairs(timeNew, value(sortedIndices), 'LineWidth', 1.2);
 stairs(ramp.time, ramp.data, 'LineWidth', 1.2);
 xlim([0, 0.3]);

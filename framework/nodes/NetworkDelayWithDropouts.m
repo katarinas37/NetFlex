@@ -1,79 +1,86 @@
 classdef NetworkDelayWithDropouts < VariableDelay
-    %NETWORKDELAY  Object which configures the true time kernel to act as a variable network delay
+    % NetworkDelayWithDropouts Configures the TrueTime kernel to act as a variable network delay.
+    %
+    % This class models network-induced delays while accounting for packet dropouts.
+    % The mechanism buffers received packets and determines the transmission time
+    % based on consecutive data dropouts.
+    %
+    % Properties:
+    %   - delays (double array) : Vector of time delays for each received message.
+    %   - dataLoss (logical array) : Binary mask indicating which packets are dropped.
+    %   - dataLossMax (integer) : Maximum number of consecutive data dropouts.
+    %   - sampleTime (double) : Sample time of the system.
+    %
+    % Methods:
+    %   - NetworkDelayWithDropouts(outputCount, nextNode, nodeNumber, sampleTime, delays, dataLoss, dataLossMax)
+    %   - calculateTransmitTime(receivedMsg) : Computes the transmission time for received messages.
+    %   - init() : Resets the delay object.
+    %
     
     properties
-        tau         % Vector of time delay for this channel
-        dataLoss    % Vector of data loss for this channel
-        dataLossMax % Max nr of consecutive data dropouts
-        Td          % Sampling time
+        delays double      % Vector of time delays for each received message
+        dataLoss logical   % Binary mask indicating which packets are dropped
+        dataLossMax  % Max nr of consecutive data dropouts
+        sampleTime double % Sample time of the system
     end
     
     methods
-        function obj = NetworkDelayWithDropouts(Nout, nextnode, nodenumber, tau, dataLoss, dataLossMax,Td)
-            %NETWORKDELAY Construct an instance of this class
-            % tau...Vector of time delay for each received message
-            %See also: VariableDelay, NetworkNode
-            obj = obj@VariableDelay(Nout, nextnode, nodenumber);
-            obj.tau = tau;
+        function obj = NetworkDelayWithDropouts(outputCount, nextNode, nodeNumber, sampleTime, delays, dataLoss, dataLossMax)
+
+            obj@VariableDelay(outputCount, nextNode, nodeNumber);
+            obj.sampleTime = sampleTime;      
+            obj.delays = delays;
             obj.dataLoss = dataLoss;
             obj.dataLossMax = dataLossMax;
-            obj.Td = Td;
         end
         
-        function [transmit_time,rx_msg] = calculate_transmit_time(obj, rx_msg) 
+        function [transmitTime,sentMsg] = calculateTransmitTime(obj, receivedMsg) 
+            % calculateTransmitTime Computes the message transmission time while handling dropouts.
+            %
+            % This method implements a buffering mechanism:
+            % - The system sends a sequence of messages [u_k, u_(k-1), ..., u_(k-pAC)].
+            % - If a necessary signal arrives, the whole vector is stored.
+            % - If any dropout occurs in the sequence, a large delay (1e6) is assigned.
+            
+            % Instead of sending the entire message buffer at once, each packet is processed
+            % individually. The algorithm iterates over a window of packets indexed by 
+            % sequence numbers k, k+1, ..., k + dataLossMax.
+            %
+            % For each packet in the window:
+            %   - If the packet is successfully received, its transmission
+            %     time is computed based on the associated network delay, the last 
+            %     transmission timestamp, and the sample time.
+            %   - If the packet is lost (dataLoss(seqIndex) = 0), it is assigned an
+            %     artificially large delay (1e6) to indicate it should not be transmitted.
+            %
+            % The final transmission time is determined as the **minimum** among all
+            % computed values, ensuring that the earliest valid transmission time is used.
+            
+            currentTime = ttCurrentTime();
+            sentMsg = receivedMsg;
+            transmitTimes = zeros(1, obj.dataLossMax + 1);
 
-            % New buffering Mechanism:
-            % Theory - buffer sends [uk,uk-1,uk-2,...uk-pAC], as soon as
-            % the packet arrives with the necessary signal, the whole
-            % vector is stored
-            % Implementation - individual packets are sent. The transmit
-            % time is calculated by comparing the arrival of the packet
-            % with sequence number k, k+1,... k+p_AC. If dropout occurs for
-            % any of the packets, the delay is set to 1e6
+            for k = 0:obj.dataLossMax
+                seqIndex = receivedMsg.seqNr + k;
 
-            % vec: vector with dropout sequence (0=dropout,1=received)
-            % p_AC_ nr of allowable consecutive lost data packets
-%             load dataloss_AC.mat 
-%             temp = [];
-%             for k = 0:p_AC
-%                 transmit = ~dataloss_AC(rx_msg.seq+k)*(obj.tau(rx_msg.seq+k) + rx_msg.last_transmit_timestamp(end)+obj.Td*k-1e-6)+...
-%                            +dataloss_AC(rx_msg.seq+k)*1e6;
-%                 temp = [temp, transmit];
-%             end
-%            transmit_time = min(temp);
-% %            transmit_time = obj.tau(rx_msg.seq) +rx_msg.last_transmit_timestamp(end); % NO DROPOUTS
-%            clear temp 
+                if obj.dataLoss(seqIndex)  % If packet is successfully transmitted
+                    transmitTimes(k + 1) = obj.delays(seqIndex) + receivedMsg.lastTransmitTS(end) + obj.sampleTime * k - 1e-6;
+                else  % If packet is lost
+                    transmitTimes(k + 1) = 1e6; % Assign large delay to lost packets
+                end
+            end
+            transmitTime = min(transmitTimes);
 
+            % Sanity check: Ensure transmitTime is not in the past
+            if currentTime > transmitTime
+                error('Invalid transmitTime: currentTime: %.3f, transmitTime: %.3f', currentTime, transmitTime);
+            end
 
-%             vec: vector with dropout sequence (01=dropout,1=received)
-%             p_AC_ nr of allowable consecutive lost data packets
-            load networkeffects.mat 
-            p_AC = 2;
-            temp = [];
-            dataloss_AC = vec_ac;
-
-
-%             for k = 0:p_AC
-%                 transmit = dataloss_AC(rx_msg.seq+k)*(obj.tau(rx_msg.seq+k) + rx_msg.last_transmit_timestamp(end)+obj.Td*k-1e-6)+...
-%                            +~dataloss_AC(rx_msg.seq+k)*1e6;
-%                 temp = [temp, transmit];
-%             end
-%            transmit_time = min(temp);
-% %            transmit_time = obj.tau(rx_msg.seq) +rx_msg.last_transmit_timestamp(end); % NO DROPOUTS
-%            clear temp 
-
-           for k = 0:obj.dataLossMax
-                transmitTimes = obj.dataLoss(rx_msg.seq+k)*(obj.tau(rx_msg.seq+k) + rx_msg.last_transmit_timestamp(end)+obj.Td*k-1e-6)+...
-                           +~obj.dataLoss(rx_msg.seq+k)*1e6;
-                temp = [temp, transmitTimes];
-           end
-           transmit_time = min(temp);
-           clear temp 
         end
         
         function init(obj)
             %init function to reset the counter and the VariableDelay object
-           init@VariableDelay(obj);
+            init@VariableDelay(obj);
         end
     end
 end

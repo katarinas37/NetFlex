@@ -6,104 +6,115 @@ classdef ObserverNode < NetworkNode & handle
     properties
         taskName char % TrueTime task name
         ncsPlant NcsPlant % Networked control system plant
+        estimatesHistory double % Observer state history
+
+
+        %------------ goes to strategy
         Ad double % Discrete-time system matrix
         Bd double % Discrete-time input matrix
         Cd double % Output matrix
         Dd double % Direct feedthrough matrix
-        xkObsvHist double % Observer state history
+        flagLost uint32 % Flag indicating consecutive packet loss
         ykHist double % Measured output history
         ekYHist double % Observation error history
-        ekYNodropoutHist double % Observation error history without dropouts
-        dropoutCount uint32 % Number of packet dropouts
-        flagLost uint32 % Flag indicating consecutive packet loss
+        %-------------
     end
     
     methods
-        function obj = ObserverNode(outputCount, nextNode, nodeNr, ncsPlant)
+        function obj = ObserverNode(nextNode, nodeNr, ncsPlant)
             % Constructor for ObserverNode
             
-            obj@NetworkNode(outputCount, 0, nextNode, nodeNr);
-            obj.taskName = ['observerTaskNode', num2str(nodeNr)];
+            obj@NetworkNode(ncsPlant.stateSize, 0, nextNode, nodeNr);
+            obj.generateTaskName(nodeNr);
+            
             obj.ncsPlant = ncsPlant;
-            obj.Ad = ncsPlant.sys_d.A;
-            obj.Bd = ncsPlant.sys_d.B;
-            obj.Cd = [1, 0];
-            obj.Dd = 0;
+
+            %------------ goes to strategy
+            obj.Ad = ncsPlant.discreteSystem.A; 
+            obj.Bd = ncsPlant.discreteSystem.B; 
+            obj.Cd = ncsPlant.discreteSystem.C; 
+            obj.Dd = ncsPlant.discreteSystem.D; 
         end
         
         function init(obj)
             % Initializes the observer node
             
-            obj.xkObsvHist = zeros(obj.ncsPlant.n, 1); % Initial state estimate
-            obj.ykHist = [];
-            obj.ekYHist = [];
-            obj.ekYNodropoutHist = [];
-            obj.dropoutCount = zeros(2, 1);
-            obj.flagLost = 0;
-            
+            obj.estimatesHistory = zeros(obj.ncsPlant.stateSize, 1); % Initial state estimate
             % Initialize TrueTime kernel
             ttInitKernel('prioDM'); % Deadline-monotonic scheduling
             
             % Create TrueTime task
             deadline = 0.1; % Maximum execution time
-            ttCreateTask(obj.taskName, deadline, obj.taskWrapperName, @obj.observerTask);
+            ttCreateTask(obj.taskName, deadline, obj.taskWrapperName, @obj.evaluate);
             ttAttachNetworkHandler(obj.taskName);
+
+            %------------ goes to strategy
+            obj.ykHist = [];
+            obj.ekYHist = [];
+            obj.flagLost = 0;
         end
+
+
         
-        function [executionTime, obj] = observerTask(obj, segment)
+        function [executionTime, obj] = evaluate(obj, segment)
             % TrueTime task function for observer
             
             receivedMsg = ttGetMsg();
-            [xk1Obsv, yk] = obj.updateObserver(receivedMsg);
-            obj.sendUpdatedState(receivedMsg, xk1Obsv);
+
+            %------- Execute selected observer strategy dynamically
+            %-------- ! implement
+            % predictedEstimates = obj.observerStrategy.execute(receivedMsg, obj.observerParams, obj.ncsPlant);
+            %--------------------------------------------------------------
             
+            
+            
+
+            %--------strategy---------------------------------
+            % l0 = [0.661; 9.51];     % -> observerParams
+            % l1 = [0.176; 2.56];     % -> observerParams
+            % l2 = [0.117; 1.51];     % -> observerParams
+            % l3 = [0.0925; 0.939];   % -> observerParams
+            % 
+            % observerGains = {l0, l1, l2, l3}; % -> observerParams
+            % 
+            % yk = obj.Cd * receivedMsg.data(1:size(obj.Cd, 2));
+            % uk = receivedMsg.data(size(obj.Cd, 2) + 1);
+            % estimates = obj.estHist(:, end); % Last observer state
+            % 
+            % observerGains = obj.computeObserverGain();
+            % 
+            % if ~isnan(yk)
+            %     obj.flagLost = 0;
+            %     predictedEstimates = obj.Ad * estimates + obj.Bd * uk + observerGains{obj.flagLost + 1} * (yk - obj.Cd * estimates);
+            %     obj.ekYHist = [obj.ekYHist, yk - obj.Cd * estimates ];
+            % else
+            %     if receivedMsg.seqNr~= 1
+            %         obj.flagLost = obj.flagLost + 1;
+            %         predictedEstimates = obj.Ad * estimates + obj.Bd * uk + observerGains{obj.flagLost + 1} * obj.ekYHist(end);
+            %     end
+            %     obj.ekYHist = [obj.ekYHist, obj.ekYHist(end)];
+            % end
+            % 
+            % obj.estHist = [obj.estHist, predictedEstimates];
+            
+           %-----------------------------------------------
+
+            sentMsg = receivedMsg;
+            % sentMsg.data(1:obj.ncsPlant.n) = xk1Obsv; % Send xk+1
+            % sentMsg.data(end) = NaN;
+            % sentMsg = NetworkMsg(receivedMsg.samplingTS, currentTime, controlSignal, receivedMsg.seqNr);
+            
+            predictedEstimates = [receivedMsg.seqNr+1; receivedMsg.seqNr+2]; % CHECK
+            sentMsg.data = predictedEstimates;
+            
+            ttSendMsg(obj.nextnode, sentMsg, 80); % Send message (80 bits) to next node
             executionTime = -1;
+            ttAnalogOutVec(1:numel(sentMsg.data),sentMsg.data);
         end
-        
-        function [xk1Obsv, yk] = updateObserver(obj, receivedMsg)
-            % Updates the observer state based on received msg
-            
-            yk = obj.Cd * receivedMsg.data(1:size(obj.Cd, 2));
-            uk = receivedMsg.data(size(obj.Cd, 2) + 1);
-            xkObsv = obj.xkObsvHist(:, end); % Last observer state
-            
-            observerGains = obj.computeObserverGain();
-            
-            if ~isnan(yk)
-                obj.flagLost = 0;
-                xk1Obsv = obj.Ad * xkObsv + obj.Bd * uk + observerGains{obj.flagLost + 1} * (yk - obj.Cd * xkObsv);
-                obj.ekYHist = [obj.ekYHist, yk - obj.Cd * xkObsv];
-            else
-                if receivedMsg.seq ~= 1
-                    obj.flagLost = obj.flagLost + 1;
-                    xk1Obsv = obj.Ad * xkObsv + obj.Bd * uk + observerGains{obj.flagLost + 1} * obj.ekYHist(end);
-                end
-                obj.ekYHist = [obj.ekYHist, obj.ekYHist(end)];
-            end
-            
-            obj.ekYNodropoutHist = [obj.ekYNodropoutHist, yk - obj.Cd * xkObsv];
-            obj.xkObsvHist = [obj.xkObsvHist, xk1Obsv];
-        end
-        
-        function observerGains = computeObserverGain(obj)
-            % Computes observer gain for different dropout scenarios
-            
-            l0 = [0.661; 9.51];
-            l1 = [0.176; 2.56];
-            l2 = [0.117; 1.51];
-            l3 = [0.0925; 0.939];
-            
-            observerGains = {l0, l1, l2, l3};
-        end
-        
-        function sendUpdatedState(obj, receivedMsg, xk1Obsv)
-            % Sends the updated state to the next node
-            
-            updatedMsg = receivedMsg;
-            updatedMsg.data(1:obj.ncsPlant.n) = xk1Obsv; % Send xk+1
-            updatedMsg.data(end) = NaN;
-            
-            ttSendMsg(obj.nextnode, updatedMsg, 80); % Send message (80 bits) to next node
+
+        function generateTaskName(obj, nodeNumber)
+            % setTaskName Sets the task name for the controller node.
+            obj.taskName = ['ObserverTaskNode', num2str(nodeNumber)];
         end
     end
 end

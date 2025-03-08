@@ -2,19 +2,21 @@ classdef NetworkDelay < VariableDelay
     % NetworkDelay Configures the TrueTime kernel to act as a variable network delay.
     %
     % Properties:
-    %   - delayTimes (double array) : Vector of time delays for each received message.
+    %   - delays (double array) : Vector of time delays for each received message.
     %
     % Methods:
     %   - NetworkDelay(outputCount, nextNode, nodeNumber, delayTimes)
     %   - calculateTransmitTime(receivedMessage) : Computes message transmission time.
     %   - init() : Resets the delay object.
+    %
+    % See also: VariableDelay, NetworkNode
 
     properties
-        delayTimes double % Vector of time delays for each received message
+        delays double % Vector of time delays for each received message
     end
     
     methods
-        function obj = NetworkDelay(outputCount, nextNode, nodeNumber, delayTimes)
+        function obj = NetworkDelay(outputCount, nextNode, nodeNumber, delays)
             % NetworkDelay Constructs an instance of this class.
             %
             % Example:
@@ -22,18 +24,23 @@ classdef NetworkDelay < VariableDelay
             
             % Call parent constructor
             obj@VariableDelay(outputCount, nextNode, nodeNumber);
-            obj.delayTimes = delayTimes;
+            obj.delays = delays;
         end
         
-        function [transmitTime, sentMsg] = calculateTransmitTime(obj, receivedMessage) 
+        function [transmitTime, sentMsg] = calculateTransmitTime(obj, receivedMsg) 
             % calculateTransmitTime Computes message transmission time.
             %
             % Example:
             %   transmitTime = obj.calculateTransmitTime(receivedMessage);
-            
-            sentMsg = receivedMessage;
-            ttCurrentTime();
-            transmitTime = obj.delayTimes(receivedMessage.seq) + receivedMessage.lastTransmitTimestamp(end);
+
+            currentTime = ttCurrentTime();
+            sentMsg = receivedMsg;
+            transmitTime = obj.delays(receivedMsg.seqNr) + receivedMsg.lastTransmitTS(end);
+        
+            % Sanity check: Ensure transmitTime is not in the past
+            if currentTime > transmitTime
+                error('Invalid transmitTime: currentTime: %.3f, transmitTime: %.3f', currentTime, transmitTime);
+            end
         end
         
         function init(obj)

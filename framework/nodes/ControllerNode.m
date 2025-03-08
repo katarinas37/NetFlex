@@ -11,7 +11,7 @@ classdef ControllerNode < NetworkNode
     %   - sendTimeHistory (double array) : Time instants when the controller sends signals.
     %
     % Methods:
-    %   - ControllerNode(nextnode, nodenumber, ncsPlant)
+    %   - ControllerNode(nextnode, nodeNr, ncsPlant)
     %   - init() : Initializes the TrueTime kernel and controller.
     %   - evaluate(segment) : Executes the control logic.
 
@@ -27,15 +27,15 @@ classdef ControllerNode < NetworkNode
     end
     
     methods
-        function obj = ControllerNode(nextnode, nodenumber, ncsPlant, controlParams, strategyClass)
+        function obj = ControllerNode(nextNode, nodeNr, ncsPlant, controlParams, strategyClass)
             % ControllerNode Constructor for a controller node in the network.
             %
             % Example:
             %   controller = ControllerNode(2, 1, ncsPlant);
             
             % Initialize NetworkNode
-            obj@NetworkNode(ncsPlant.inputSize, 0, nextnode, nodenumber);
-            obj.generateTaskName(nodenumber);
+            obj@NetworkNode(ncsPlant.inputSize, 0, nextNode, nodeNr);
+            obj.generateTaskName(nodeNr);
 
             obj.ncsPlant = ncsPlant;
             obj.delayedControlSignals = zeros(obj.ncsPlant.delaySteps, 1);
@@ -73,33 +73,33 @@ classdef ControllerNode < NetworkNode
         function [executionTime, obj] = evaluate(obj, seg)
             % evaluate Executes the control logic when a network message arrives.
             
-            rxData = ttGetMsg(); % Retrieve incoming network message
-            timestamp = ttCurrentTime();
+            receivedMsg = ttGetMsg(); % Retrieve incoming network message
+            currentTime = ttCurrentTime();
 
             % Construct lifted states
-            liftedState = [rxData.data(:); obj.delayedControlSignals];
+            liftedState = [receivedMsg.data(:); obj.delayedControlSignals];
             obj.liftedStateHistory = [obj.liftedStateHistory; liftedState'];
 
-            % Execute selected control strategy dynamically
-            controlSignal = obj.controlStrategy.execute(rxData, obj.controlParams, obj.ncsPlant);
+            %------- Execute selected control strategy dynamically --------
+            controlSignal = obj.controlStrategy.execute(receivedMsg, obj.controlParams, obj.ncsPlant);
+            %--------------------------------------------------------------
 
+            % update
             obj.controlSignalHistory = [obj.controlSignalHistory; controlSignal];
-            obj.sendTimeHistory = [obj.sendTimeHistory; timestamp];
-
-            % Update delayed control signal history
+            obj.sendTimeHistory = [obj.sendTimeHistory; currentTime];
             obj.delayedControlSignals = [controlSignal; obj.delayedControlSignals(1:end-1)];
 
             % Transmit results to the next node
-            txMsg = NetworkMsg(rxData.samplingTimestamp, timestamp, controlSignal, rxData.seq);
-            ttSendMsg(obj.nextnode, txMsg, 80);
+            sentMsg = NetworkMsg(receivedMsg.samplingTS, currentTime, controlSignal, receivedMsg.seqNr);
+            ttSendMsg(obj.nextnode, sentMsg, 80);
             executionTime = -1;
-            ttAnalogOutVec(1:numel(txMsg.data),txMsg.data);
+            ttAnalogOutVec(1:numel(sentMsg.data),sentMsg.data);
 
         end
 
-        function generateTaskName(obj, nodeNumber)
+        function generateTaskName(obj, nodeNr)
             % setTaskName Sets the task name for the controller node.
-            obj.taskName = ['controllerTaskNode', num2str(nodeNumber)];
+            obj.taskName = ['controllerTaskNode', num2str(nodeNr)];
         end
     end
 end

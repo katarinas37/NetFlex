@@ -2,20 +2,20 @@ classdef SensorNode < NetworkNode
     % SensorNode Configures a TrueTime kernel as a sensor node.
     %
     % Properties:
-    %   - samplingTime (double) : Sampling time for periodic measurements.
+    %   - sampleTime (double) : Sampling time for periodic measurements.
     %   - sequenceNumber (double) : Sequence number for messages.
     %   - waitbarHandle : Handle to the simulation progress waitbar.
     %   - simulationEnd (double) : End time of the simulation.
     %   - updateTime (double) : Time interval for updating the waitbar.
     %
     % Methods:
-    %   - SensorNode(Nin, nextnode, nodenumber, samplingTime, simulationEnd)
+    %   - SensorNode(Nin, nextnode, nodenumber, sampleTime, simulationEnd)
     %   - init() : Initializes the TrueTime kernel and sensor task.
     %   - sampleStates(segment) : Periodically samples sensor data and sends messages.
     %   - delete() : Cleans up resources when the object is deleted.
 
     properties
-        samplingTime double % Sampling time for periodic measurements
+        sampleTime double % Sampling time for periodic measurements
         sequenceNumber double % Sequence number for messages
         waitbarHandle % Handle to the simulation progress waitbar
         simulationEnd double % End time of the simulation
@@ -23,7 +23,7 @@ classdef SensorNode < NetworkNode
     end
     
     methods
-        function obj = SensorNode(Nin, nextnode, nodenumber, samplingTime, simulationEnd)
+        function obj = SensorNode(Nin, nextnode, nodenumber, sampleTime, simulationEnd)
             % SensorNode Constructor for a sensor node in the network.
             %
             % Example:
@@ -31,7 +31,7 @@ classdef SensorNode < NetworkNode
             
             % Initialize NetworkNode
             obj@NetworkNode(Nin, Nin, nextnode, nodenumber);
-            obj.samplingTime = samplingTime;
+            obj.sampleTime = sampleTime;
             obj.sequenceNumber = 1;
             obj.simulationEnd = simulationEnd;
         end
@@ -46,7 +46,7 @@ classdef SensorNode < NetworkNode
             
             % Create periodic sensor task
             startTime = 0.0;
-            period = obj.samplingTime;
+            period = obj.sampleTime;
             ttCreatePeriodicTask(sprintf('sensorTaskNode%d', obj.nodenumber), startTime, period, ...
                 obj.taskWrapperName, @obj.sampleStates);
             
@@ -64,10 +64,10 @@ classdef SensorNode < NetworkNode
             
             sensorData = ttAnalogInVec(1:obj.Nin); % Read sensor data
             ttAnalogOutVec(1:obj.Nin, sensorData); % Output sensor data
-            timestamp = ttCurrentTime();
+            TS = ttCurrentTime();
             
             % Create and send network message
-            txMsg = NetworkMsg(timestamp, timestamp, sensorData, obj.sequenceNumber);
+            txMsg = NetworkMsg(TS, TS, sensorData, obj.sequenceNumber);
             obj.sequenceNumber = obj.sequenceNumber + 1;
             
             for nextnode = obj.nextnode(:)' % Send to all connected nodes
@@ -79,7 +79,7 @@ classdef SensorNode < NetworkNode
             executionTime = -1; % Indicate task completion
             
             % Update simulation progress waitbar
-            progress = (ttCurrentTime() + obj.samplingTime) / obj.simulationEnd;
+            progress = (ttCurrentTime() + obj.sampleTime) / obj.simulationEnd;
             progress = min(progress, 1);
             
             if any(obj.updateTime <= ttCurrentTime()) && isvalid(obj.waitbarHandle)

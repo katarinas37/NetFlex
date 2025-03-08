@@ -1,42 +1,42 @@
 classdef NetworkMsg
     % NetworkMsg Represents a message sent through the network.
-    % Stores measurement data along with timestamping and sequencing information.
+    % Stores measurement data along with TSing and sequencing information.
     %
     % Properties:
-    %   - samplingTimestamp (double) : Timestamp of the sensor at message creation.
-    %   - lastTransmitTimestamp (double) : Timestamp of the last transmission.
+    %   - samplingTS (double) : Timestamp of the sensor at message creation.
+    %   - lastTransmitTS (double) : Timestamp of the last transmission.
     %   - data (double) : Measurement data stored as a numeric vector/matrix.
-    %   - seq (uint32) : Sequence number of the message.
+    %   - seqNr(uint32) : Sequence number of the message.
     %
     % Methods:
-    %   - NetworkMsg(samplingTimestamp, lastTransmitTimestamp, data, seq) 
+    %   - NetworkMsg(samplingTS, lastTransmitTS, data, seqNr) 
     %     : Constructs a network message with required attributes.
     
     properties (SetAccess = public) % Prevent modification after initialization
-        samplingTimestamp double % Timestamp of the sensor
-        lastTransmitTimestamp double % Last time message was transmitted
+        samplingTS double % TS of the sensor
+        lastTransmitTS double % Last time message was transmitted
         data double % Measurement data (vector/matrix)
-        seq uint32 % Sequence number
+        seqNr int32 % Sequence number
     end
     
     methods
-        function obj = NetworkMsg(samplingTimestamp, lastTransmitTimestamp, data, seq)
+        function obj = NetworkMsg(samplingTS, lastTransmitTS, data, seqNr)
             % NetworkMsg Constructor for a network message.
             %
             % Example:
             %   msg = NetworkMsg(0.1, 0.2, [1, 2, 3], 1);
             
             % Input validation
-            validateattributes(samplingTimestamp, {'numeric'}, {'scalar', 'real', 'nonnegative'}, mfilename, 'samplingTimestamp');
-            validateattributes(lastTransmitTimestamp, {'numeric'}, {'scalar', 'real', 'nonnegative'}, mfilename, 'lastTransmitTimestamp');
+            validateattributes(samplingTS, {'numeric'}, {'scalar', 'real', 'nonnegative'}, mfilename, 'samplingTS');
+            validateattributes(lastTransmitTS, {'numeric'}, {'scalar', 'real', 'nonnegative'}, mfilename, 'lastTransmitTS');
             validateattributes(data, {'numeric'}, {'nonempty', 'real', 'finite'}, mfilename, 'data');
-            validateattributes(seq, {'numeric'}, {'scalar', 'integer', 'nonnegative'}, mfilename, 'seq');
+            validateattributes(seqNr, {'numeric'}, {'scalar', 'integer', 'nonnegative'}, mfilename, 'seq');
 
             % Assign properties
-            obj.samplingTimestamp = samplingTimestamp;
-            obj.lastTransmitTimestamp = lastTransmitTimestamp;
+            obj.samplingTS = samplingTS;
+            obj.lastTransmitTS = lastTransmitTS;
             obj.data = data;
-            obj.seq = uint32(seq);
+            obj.seqNr = uint32(seqNr);
         end
     end
 end

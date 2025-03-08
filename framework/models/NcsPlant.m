@@ -6,20 +6,22 @@ classdef NcsPlant < handle
     %   - system (ss) : Continuous-time state-space model of the plant.
     %   - stateSize (double) : System order.
     %   - inputSize (double) : Number of control inputs.
-    %   - samplingTime (double) : Sampling time.
+    %   - outputSize (double) : Number of measurable outputs.
+    %   - sampleTime (double) : Sample time.
     %   - delaySteps (double) : Delay steps for each input channel.
     %   - controlSaturationLimits (double) : Input saturation limits.
     %   - discreteSystem (ss, Dependent) : Discretized system.
     %   - liftedSystem (ss, Dependent) : Lifted model with controller input.
     %
     % Methods:
-    %   - NcsPlant(system, delaySteps, samplingTime, 'controlSaturationLimits', [limits])
+    %   - NcsPlant(system, delaySteps, sampleTime, 'controlSaturationLimits', [limits])
     %   - computeLiftedModel() : Computes the lifted model.
 
     properties (SetAccess = private)
         stateSize double % System order
         inputSize double % Input size
-        samplingTime double % Sampling time
+        outputSize double % Output size
+        sampleTime double % Sampling time
         delaySteps double % Number of delay steps per input channel
         controlSaturationLimits double % Input saturation limits
         system % Continuous-time state-space model
@@ -31,7 +33,7 @@ classdef NcsPlant < handle
     end
     
     methods
-        function obj = NcsPlant(system, delaySteps, samplingTime, varargin)
+        function obj = NcsPlant(system, delaySteps, sampleTime, varargin)
             % NcsPlant Constructor for a networked control system plant.
             %
             % Example:
@@ -42,15 +44,15 @@ classdef NcsPlant < handle
             p = inputParser;
             p.addRequired('system', @(x) isa(x, 'ss')); % Ensure 'system' is a state-space object
             p.addRequired('delaySteps', @(x) validateattributes(x, {'double'}, {'integer', 'positive', 'finite', 'real'}));
-            p.addRequired('samplingTime', @(x) validateattributes(x, {'double'}, {'positive', 'finite', 'real', 'scalar'}));
+            p.addRequired('sampleTime', @(x) validateattributes(x, {'double'}, {'positive', 'finite', 'real', 'scalar'}));
             p.addParameter('controlSaturationLimits', nan, @(x) validateattributes(x, {'double'}, {'real'}));
-            p.parse(system, delaySteps, samplingTime, varargin{:});
+            p.parse(system, delaySteps, sampleTime, varargin{:});
             
             % Assign properties
             obj.system = p.Results.system;
             obj.stateSize = size(obj.system.A, 1);
             obj.inputSize = size(obj.system.B, 2);
-            obj.samplingTime = p.Results.samplingTime;
+            obj.sampleTime = p.Results.sampleTime;
             obj.delaySteps = p.Results.delaySteps;
 
             % Validate delaySteps size
@@ -65,7 +67,7 @@ classdef NcsPlant < handle
         
         function discreteSystem = get.discreteSystem(obj)
             % Computes the discrete-time version of the plant
-            discreteSystem = c2d(obj.system, obj.samplingTime);
+            discreteSystem = c2d(obj.system, obj.sampleTime);
         end
 
         function liftedSystem = get.liftedSystem(obj)
@@ -109,12 +111,12 @@ classdef NcsPlant < handle
                 Bfhat = [Bfhat, [Bd(:, i); zeros(totalDelay, 1)]];
             end
             
-            liftedSystem = ss(Ahat, Bhat, eye(obj.stateSize + totalDelay), zeros(obj.stateSize + totalDelay, obj.inputSize), obj.samplingTime);
+            liftedSystem = ss(Ahat, Bhat, eye(obj.stateSize + totalDelay), zeros(obj.stateSize + totalDelay, obj.inputSize), obj.sampleTime);
         end
 
-        function samplingTime = get.samplingTime(obj)
-            % get.samplingTime Returns the sampling time of the plant.
-            samplingTime = obj.samplingTime;
+        function sampleTime = get.sampleTime(obj)
+            % get.sampleTime Returns the sampling time of the plant.
+            sampleTime = obj.sampleTime;
         end
 
         function stateSize = get.stateSize(obj)
