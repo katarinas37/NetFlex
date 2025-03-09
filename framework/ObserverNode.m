@@ -6,114 +6,66 @@ classdef ObserverNode < NetworkNode & handle
     properties
         taskName char % TrueTime task name
         ncsPlant NcsPlant % Networked control system plant
+        sendTimeHistory double % Time instants when signals were sent
         estimatesHistory double % Observer state history
-
-
-        %------------ goes to strategy
-        Ad double % Discrete-time system matrix
-        Bd double % Discrete-time input matrix
-        Cd double % Output matrix
-        Dd double % Direct feedthrough matrix
-        flagLost uint32 % Flag indicating consecutive packet loss
-        ykHist double % Measured output history
-        ekYHist double % Observation error history
-        %-------------
+        observerStrategy % Observer strategy used in the node
+        observerParams % Observer parameters for the strategy
     end
     
     methods
-        function obj = ObserverNode(nextNode, nodeNr, ncsPlant)
+        function obj = ObserverNode(nextNode, nodeNr, ncsPlant, observerParams, strategyClass)
             % Constructor for ObserverNode
             
             obj@NetworkNode(ncsPlant.stateSize, 0, nextNode, nodeNr);
             obj.generateTaskName(nodeNr);
             
+            obj.estimatesHistory = zeros(obj.ncsPlant.stateSize, 1); % Initial state estimate
             obj.ncsPlant = ncsPlant;
-
-            %------------ goes to strategy
-            obj.Ad = ncsPlant.discreteSystem.A; 
-            obj.Bd = ncsPlant.discreteSystem.B; 
-            obj.Cd = ncsPlant.discreteSystem.C; 
-            obj.Dd = ncsPlant.discreteSystem.D; 
+            
+            % Validate controlParams and instantiate the strategy
+            if isstruct(observerParams)
+                if exist(strategyClass, 'class') == 8 % Check if class exists
+                    obj.observerStrategy = feval(strategyClass, ncsPlant); % Instantiate object dynamically
+                else
+                    error('ObserverNode:InvalidStrategy', 'Observer strategy "%s" class does not exist.', strategyClass);
+                end
+            else
+                error('ObserverNode:MissingStrategy', 'observerParams must contain a valid strategy field.');
+            end
         end
         
-        function init(obj)
-            % Initializes the observer node
-            
-            obj.estimatesHistory = zeros(obj.ncsPlant.stateSize, 1); % Initial state estimate
+        function init(obj)            
             % Initialize TrueTime kernel
             ttInitKernel('prioDM'); % Deadline-monotonic scheduling
             
             % Create TrueTime task
             deadline = 0.1; % Maximum execution time
             ttCreateTask(obj.taskName, deadline, obj.taskWrapperName, @obj.evaluate);
-            ttAttachNetworkHandler(obj.taskName);
-
-            %------------ goes to strategy
-            obj.ykHist = [];
-            obj.ekYHist = [];
-            obj.flagLost = 0;
+            ttAttachNetworkHandler(obj.taskName);            
         end
 
-
         
-        function [executionTime, obj] = evaluate(obj, segment)
+        function [executionTime, obj] = evaluate(obj, ~)
             % TrueTime task function for observer
             
             receivedMsg = ttGetMsg();
 
-            %------- Execute selected observer strategy dynamically
-            %-------- ! implement
-            % predictedEstimates = obj.observerStrategy.execute(receivedMsg, obj.observerParams, obj.ncsPlant);
-            %--------------------------------------------------------------
-            
-            
-            
+            % Execute selected observer strategy dynamically
+            estimates = obj.observerStrategy.execute(receivedMsg, obj.observerParams, obj.ncsPlant);
 
-            %--------strategy---------------------------------
-            % l0 = [0.661; 9.51];     % -> observerParams
-            % l1 = [0.176; 2.56];     % -> observerParams
-            % l2 = [0.117; 1.51];     % -> observerParams
-            % l3 = [0.0925; 0.939];   % -> observerParams
-            % 
-            % observerGains = {l0, l1, l2, l3}; % -> observerParams
-            % 
-            % yk = obj.Cd * receivedMsg.data(1:size(obj.Cd, 2));
-            % uk = receivedMsg.data(size(obj.Cd, 2) + 1);
-            % estimates = obj.estHist(:, end); % Last observer state
-            % 
-            % observerGains = obj.computeObserverGain();
-            % 
-            % if ~isnan(yk)
-            %     obj.flagLost = 0;
-            %     predictedEstimates = obj.Ad * estimates + obj.Bd * uk + observerGains{obj.flagLost + 1} * (yk - obj.Cd * estimates);
-            %     obj.ekYHist = [obj.ekYHist, yk - obj.Cd * estimates ];
-            % else
-            %     if receivedMsg.seqNr~= 1
-            %         obj.flagLost = obj.flagLost + 1;
-            %         predictedEstimates = obj.Ad * estimates + obj.Bd * uk + observerGains{obj.flagLost + 1} * obj.ekYHist(end);
-            %     end
-            %     obj.ekYHist = [obj.ekYHist, obj.ekYHist(end)];
-            % end
-            % 
-            % obj.estHist = [obj.estHist, predictedEstimates];
+            % Update
+            obj.estimatesHistory = [obj.estimatesHistory; estimates];
+            obj.sendTimeHistory = [obj.sendTimeHistory; ttCurrentTime()];
             
-           %-----------------------------------------------
-
             sentMsg = receivedMsg;
-            % sentMsg.data(1:obj.ncsPlant.n) = xk1Obsv; % Send xk+1
-            % sentMsg.data(end) = NaN;
-            % sentMsg = NetworkMsg(receivedMsg.samplingTS, currentTime, controlSignal, receivedMsg.seqNr);
-            
-            predictedEstimates = [receivedMsg.seqNr+1; receivedMsg.seqNr+2]; % CHECK
-            sentMsg.data = predictedEstimates;
-            
+            sentMsg.data = estimates;
             ttSendMsg(obj.nextnode, sentMsg, 80); % Send message (80 bits) to next node
             executionTime = -1;
             ttAnalogOutVec(1:numel(sentMsg.data),sentMsg.data);
         end
 
         function generateTaskName(obj, nodeNumber)
-            % setTaskName Sets the task name for the controller node.
+            % setTaskName Sets the task name for the observer node.
             obj.taskName = ['ObserverTaskNode', num2str(nodeNumber)];
         end
     end

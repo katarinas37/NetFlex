@@ -22,12 +22,14 @@ system = ss(Ac, bc, eye(stateSize), zeros(stateSize,1));
 % Define control parameters
 controlParams.Ramp = struct();
 controlParams.StateFeedbackStrategy.k = [10, 20];
+% Define observer parameters
+observerParams.SwitchLyapStrategy = struct();
 
 %% Initialize NCS plant
 ncsPlant = NcsPlant(system, delaySteps, sampleTime);
 
 %% Create Networked Control System
-NCS = NcsStructure(ncsPlant, 'simTime', simulationTime, 'controlParams', controlParams);
+NCS = NcsStructure(ncsPlant, 'simTime', simulationTime, 'controlParams', controlParams, 'observerParams', observerParams);
 
 %% Run simulation
 sim('NCS_sim');

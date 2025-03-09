@@ -23,7 +23,8 @@ classdef NcsStructure < handle
         sensorNode SensorNode % Sensor node object
         controllerNode  % Controller node object
         controlParams struct % Control parameters for the controller
-        testNode % test node
+        observerParams struct % Observer parameters for the observer
+        % testNode % test node
         % testNode2
     end
     
@@ -54,12 +55,14 @@ classdef NcsStructure < handle
             p = inputParser;
             addParameter(p, 'simTime', 5000 * ncsPlant.sampleTime(), @(x) validateattributes(x, {'numeric'}, {'scalar', 'positive'}));
             addParameter(p, 'controlParams', struct(), @(x) isstruct(x)); % Allow empty struct
+            addParameter(p, 'observerParams', struct(), @(x) isstruct(x)); % Allow empty struct
             parse(p, varargin{:});
 
             % Assign properties
             obj.ncsPlant = ncsPlant;
             obj.simTime = p.Results.simTime;
             obj.controlParams = p.Results.controlParams;
+            obj.observerParams = p.Results.observerParams;
             
             % Generate network nodes
             obj.initializeNodes();
@@ -78,8 +81,8 @@ classdef NcsStructure < handle
 
             % Create nodes
             obj.sensorNode = SensorNode(obj.ncsPlant.stateSize(), controllerNodeNumber, obj.SENSOR_NODE_NUMBER, obj.ncsPlant.sampleTime(), obj.simTime);
-            obj.controllerNode = ControllerNode(testNodeNumber, controllerNodeNumber, obj.ncsPlant, obj.controlParams.('Ramp'), 'Ramp');
-            obj.testNode = NetworkDelay(obj.ncsPlant.inputSize, 0, testNodeNumber, tauCa);
+            % obj.controllerNode = ControllerNode(testNodeNumber, controllerNodeNumber, obj.ncsPlant, obj.controlParams.('Ramp'), 'Ramp');
+            % obj.testNode = NetworkDelay(obj.ncsPlant.inputSize, testNode2Number, testNodeNumber, tauCa);
             % obj.testNode2 = NetworkOrderer(obj.ncsPlant.inputSize,0,testNode2Number,obj.ncsPlant.sampleTime);
             % --- test node ---    
             % obj.testNode = NetworkDelay(obj.ncsPlant.inputSize, 0, testNodeNumber, tauCa);
@@ -89,7 +92,7 @@ classdef NcsStructure < handle
             % obj.testNode = NetworkDropoutDetection(obj.ncsPlant.inputSize,0, testNodeNumber,1e-5 ,vec_ca);
             % obj.testNode = NetworkDelayWithDropouts(obj.ncsPlant.inputSize,0,testNodeNumber,obj.ncsPlant.sampleTime,tauCa/10,vec_ca,3);
             % -----------------
-            % obj.controllerNode = ObserverNode(0, controllerNodeNumber,obj.ncsPlant);
+            obj.controllerNode = ObserverNode(0, controllerNodeNumber,obj.ncsPlant, obj.observerParams.('SwitchLyapStrategy'), 'SwitchLyapStrategy');
         end
 
         function tauCa = generateDelays(obj)
@@ -111,7 +114,7 @@ classdef NcsStructure < handle
             % Returns a cell array of all nodes in the NCS.
             % allNodes = [{obj.sensorNode}; {obj.controllerNode}; {obj.tauCaNode}; {obj.test1}];
             % allNodes = [{obj.sensorNode};{obj.controllerNode};{obj.testNode};{obj.testNode2}];
-            allNodes = [{obj.sensorNode};{obj.controllerNode};{obj.testNode}];
+            allNodes = [{obj.sensorNode};{obj.controllerNode};];
         end
 
         function nr = getMaxNodeNumber(obj)
@@ -124,9 +127,9 @@ classdef NcsStructure < handle
             % Retrieves simulation results in a structured format.
             
             % Controller output signal
-            numSamples = length(obj.controllerNode.controlSignalHistory);
+            numSamples = length(obj.controllerNode.ukHist);
             timeVector = (0:(numSamples - 1)) * obj.ncsPlant.sampleTime();
-            results.uk = timeseries(obj.controllerNode.controlSignalHistory, timeVector);
+            results.uk = timeseries(obj.controllerNode.ukHist, timeVector);
             results.uk.DataInfo.Interpolation = 'zoh';
 
             % Network delay times
