@@ -59,28 +59,45 @@ classdef tNcsStructure < handle
             obj.simTime = p.Results.simTime;
             obj.controlParams = p.Results.controlParams;
             obj.nodeMap = containers.Map(); % Initialize empty dictionary
-            
-            % Generate network nodes
-            obj.initializeNodes();
-        end
 
-        function initializeNodes(obj)
-            tauCa = ceil(obj.config.tau_ca / 1e-4) * 1e-4; % Ensure proper scaling
+            % Step 1: Add all nodes without linking
+            obj.createNodes();
 
-            % Add SensorNode
-            obj.addNode("SensorNode", SensorNode(obj.ncsPlant.stateSize, obj.getNextNodeNr(), ...
-                "SensorNode", obj.ncsPlant.sampleTime, obj.simTime));
-            
-            % Add ControllerNode
-            obj.addNode("controllerNode", ControllerNode(obj.getNextNodeNr(), obj.nodeMap("SensorNode").nodeNr, ...
-                obj.ncsPlant, obj.controlParams.Ramp, 'Ramp'));
+            % Step 2: Set correct nextNode numbers
+            obj.linkNodes();
+      end
 
-            % Add DelayNode (NetworkDelay)
-            obj.addNode("delayNode", NetworkDelay(1, obj.getNextNodeNr(), obj.nodeMap("controllerNode").nodeNr, tauCa * 0));
+      function createNodes(obj)
+          % Creates all nodes without linking them
 
-            % Add DropoutNode (NetworkDropoutSimple)
-            obj.addNode("dropoutNode", NetworkDropoutSimple(1, 0, obj.getNextNodeNr(), obj.config.vec_ca));
-        end
+          % Sensor Node
+          obj.addNode("sensorNode", SensorNode(obj.ncsPlant.getStateSize(), 0, ...
+              "sensorNode", obj.ncsPlant.getSampleTime(), obj.simTime));
+
+          % Controller Node
+          obj.addNode("controllerNode", ControllerNode(0, 0, obj.ncsPlant, obj.controlParams.Ramp, 'Ramp'));
+
+          % Observer Node
+          obj.addNode("observerNode", NetworkObserver(0, 0, obj.observerParams.SwitchLyapStrategy));
+
+          % Delay Node
+          tauCa = ceil(obj.config.tau_ca / 1e-4) * 1e-4;
+          obj.addNode("delayNode", NetworkDelay(1, 0, 0, tauCa * 0));
+
+          % Dropout Node
+          obj.addNode("dropoutNode", NetworkDropoutSimple(1, 0, 0, obj.config.vec_ca));
+      end
+
+      function linkNodes(obj)
+          % After all nodes exist, link them correctly
+
+          % Define connections
+          obj.nodeMap("sensorNode").nextNode = obj.nodeMap("controllerNode").nodeNr;
+          obj.nodeMap("controllerNode").nextNode = obj.nodeMap("observerNode").nodeNr;
+          obj.nodeMap("observerNode").nextNode = obj.nodeMap("delayNode").nodeNr;
+          obj.nodeMap("delayNode").nextNode = obj.nodeMap("dropoutNode").nodeNr;
+          obj.nodeMap("dropoutNode").nextNode = 0; % Final node
+      end
 
         function addNode(obj, key, nodeObj)
             % Adds a node to the structure dynamically using a key
@@ -90,6 +107,11 @@ classdef tNcsStructure < handle
         function nodeNr = getNextNodeNr(obj)
             % Returns the next available node number dynamically
             nodeNr = length(obj.nodeMap) + 1;
+        end
+
+        function count = getNodeCount(obj)
+            % Returns the current number of nodes in nodeMap
+            count = length(obj.nodeMap);
         end
 
         function allNodes = get.allNodes(obj)
