@@ -58,6 +58,7 @@ classdef tNcsStructure < handle
             obj.ncsPlant = ncsPlant;
             obj.simTime = p.Results.simTime;
             obj.controlParams = p.Results.controlParams;
+            obj.observerParams = p.Results.observerParams;
             obj.nodeMap = containers.Map(); % Initialize empty dictionary
             
             % Generate network nodes
@@ -68,18 +69,19 @@ classdef tNcsStructure < handle
             tauCa = ceil(obj.config.tau_ca / 1e-4) * 1e-4; % Ensure proper scaling
 
             % Add SensorNode
-            obj.addNode("SensorNode", SensorNode(obj.ncsPlant.stateSize, obj.getNextNodeNr(), ...
+            obj.addNode("SensorNode", SensorNode(obj.ncsPlant.stateSize, 2, obj.getNextNodeNr(), ...
                 "SensorNode", obj.ncsPlant.sampleTime, obj.simTime));
             
             % Add ControllerNode
-            obj.addNode("controllerNode", ControllerNode(obj.getNextNodeNr(), obj.nodeMap("SensorNode").nodeNr, ...
-                obj.ncsPlant, obj.controlParams.Ramp, 'Ramp'));
+            obj.addNode("ControllerNode", ...
+                ObserverNode(0, obj.nodeMap("SensorNode").nodeNr, obj.ncsPlant, obj.observerParams.SwitchedLyapStrategy, 'SwitchedLyapStrategy') ...
+                        );
 
             % Add DelayNode (NetworkDelay)
-            obj.addNode("delayNode", NetworkDelay(1, obj.getNextNodeNr(), obj.nodeMap("controllerNode").nodeNr, tauCa * 0));
+            % obj.addNode("DelayNode", NetworkDelay(1, obj.getNextNodeNr(), obj.nodeMap("ControllerNode").nodeNr, tauCa * 0));
 
             % Add DropoutNode (NetworkDropoutSimple)
-            obj.addNode("dropoutNode", NetworkDropoutSimple(1, 0, obj.getNextNodeNr(), obj.config.vec_ca));
+            % obj.addNode("DropoutNode", NetworkDropoutSimple(1, 0, obj.getNextNodeNr(), obj.config.vec_ca));
         end
 
         function addNode(obj, key, nodeObj)
@@ -100,8 +102,9 @@ classdef tNcsStructure < handle
         function results = get.results(obj)
             % Retrieves simulation results in a structured format
             
-            controllerNode = obj.nodeMap("controllerNode"); % Retrieve by key
-            numSamples = length(controllerNode.ukHist); 
+
+            controllerNode = obj.nodeMap("ControllerNode"); % Retrieve by key
+            % numSamples = length(controllerNode.ukHist); 
             timeVector = (0:(numSamples - 1)) * obj.ncsPlant.getSampleTime();
             
             % Controller output signal
@@ -109,10 +112,15 @@ classdef tNcsStructure < handle
             results.uk.DataInfo.Interpolation = 'zoh';
 
             % Network delay times
-            delayNode = obj.nodeMap("delayNode");
+            delayNode = obj.nodeMap("DelayNode");
             tauValues = cell2mat(cellfun(@(x) x.tau, delayNode, 'UniformOutput', false)');
             results.tauCa = timeseries(tauValues, timeVector);
             results.tauCa.DataInfo.Interpolation = 'zoh';
+        end
+
+       function nodeNr = getMaxNodeNr(obj)
+            % Returns the next available node number dynamically
+            nodeNr = length(obj.nodeMap);
         end
     end
 end
