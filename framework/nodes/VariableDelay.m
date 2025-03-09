@@ -4,7 +4,7 @@ classdef VariableDelay < NetworkNode & handle
     % The node transmits each message at the set transmit time to the next nodes.
     %
     % Properties:
-    %   - messageBuffer (MsgBuffer) : Buffer storing messages for future transmission.
+    %   - msgBuffer (MsgBuffer) : Buffer storing messages for future transmission.
     %   - sendTaskName (string) : Name of the send task.
     %   - delayTaskName (string) : Name of the delay task.
     %
@@ -16,7 +16,7 @@ classdef VariableDelay < NetworkNode & handle
     %   - init() : Initializes the TrueTime kernel and delay tasks.
 
     properties
-        messageBuffer MsgBuffer % Buffer to store messages scheduled for future transmission
+        msgBuffer MsgBuffer % Buffer to store messages scheduled for future transmission
         sendTaskName char % Task name of the send task
         delayTaskName char % Task name of the delay task
     end
@@ -36,7 +36,7 @@ classdef VariableDelay < NetworkNode & handle
             obj@NetworkNode(outputCount, 0, nextNode, nodeNumber);
             obj.generateSendTaskName(nodeNumber);
             obj.generateDelayTaskName(nodeNumber);
-            obj.messageBuffer = MsgBuffer();
+            obj.msgBuffer = MsgBuffer();
         end
         
         function [executionTime, obj] = delayCode(obj, seg)
@@ -54,7 +54,7 @@ classdef VariableDelay < NetworkNode & handle
                     [transmitTime, sentMsg] = obj.calculateTransmitTime(receivedMsg);
                     sentMsg.lastTransmitTS = [sentMsg.lastTransmitTS(end), transmitTime];
 
-                    if obj.messageBuffer.elementCount == 0 || transmitTime < obj.messageBuffer.getTop().transmitTime
+                    if obj.msgBuffer.elementCount == 0 || transmitTime < obj.msgBuffer.getTop().transmitTime
                         % Cancel existing job, insert new packet at the beginning, and reschedule job
                         try
                             ttKillJob(obj.sendTaskName);
@@ -64,15 +64,15 @@ classdef VariableDelay < NetworkNode & handle
                         
                         % Insert new message at the top of the buffer
                         element = BufferElement(transmitTime, sentMsg);
-                        obj.messageBuffer.pushTop(element);
+                        obj.msgBuffer.pushTop(element);
                         
                         % Schedule a new send job for the next packet
                         ttCreateJob(obj.sendTaskName);
                     else
                         % Insert the message into the buffer and sort by transmission time
                         element = BufferElement(transmitTime, sentMsg);
-                        obj.messageBuffer.pushBack(element);
-                        obj.messageBuffer.sortBuffer();
+                        obj.msgBuffer.pushBack(element);
+                        obj.msgBuffer.sortBuffer();
                     end
                     
                     executionTime = -1;
@@ -85,8 +85,8 @@ classdef VariableDelay < NetworkNode & handle
             switch seg
                 case 1
                     % Sleep until the next message should be transmitted
-                    if obj.messageBuffer.elementCount > 0
-                        wakeUpTime = obj.messageBuffer.getTop().transmitTime;
+                    if obj.msgBuffer.elementCount > 0
+                        wakeUpTime = obj.msgBuffer.getTop().transmitTime;
                     else
                         wakeUpTime = 1e9;
                     end
@@ -95,7 +95,7 @@ classdef VariableDelay < NetworkNode & handle
                     
                 case 2
                     % If the transmit time has not been reached, go to sleep again
-                    if obj.messageBuffer.getTop().transmitTime - ttCurrentTime() > 1e-8
+                    if obj.msgBuffer.getTop().transmitTime - ttCurrentTime() > 1e-8
                         ttSetNextSegment(1);
                     end
                     executionTime = 0;
@@ -104,20 +104,20 @@ classdef VariableDelay < NetworkNode & handle
                     % The transmit time has been reached -> send the message to the next node
                     
                     % Retrieve message from buffer
-                    transmittedMessage = obj.messageBuffer.getTop().data;
+                    transmittedMessage = obj.msgBuffer.getTop().data;
                     
                     % Send to all next nodes
-                    for nextNode = obj.nextnode
+                    for nextNode = obj.nextNode
                         if nextNode ~= 0
                             ttSendMsg(nextNode, transmittedMessage, 80); % Send message (80 bits)
                         end
                     end
                     
                     % Output analog data
-                    ttAnalogOutVec(1:obj.Nout, transmittedMessage.data);
+                    ttAnalogOutVec(1:obj.nOut, transmittedMessage.data);
                     
                     % Remove message from buffer
-                    obj.messageBuffer.popTop();
+                    obj.msgBuffer.popTop();
                     
                     % Schedule the next job
                     ttCreateJob(obj.sendTaskName);
@@ -129,7 +129,7 @@ classdef VariableDelay < NetworkNode & handle
             % init Initializes the TrueTime kernel and creates send/delay tasks.
             
             % Clear the message buffer
-            obj.messageBuffer.clear();
+            obj.msgBuffer.clear();
             
             % Initialize TrueTime kernel
             ttInitKernel('prioDM'); % Deadline-monotonic scheduling

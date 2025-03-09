@@ -4,10 +4,10 @@ classdef NetworkOrderer < NetworkNode & handle
     % See also: NetworkNode
     
     properties
-        sampleTime double % Sample time
-        awaitSeqNr uint32 % Seq number to wait for
         taskName char % TrueTime task name
-        buffer MsgBuffer % Buffer to store network messages
+        sampleTime double % Sample time
+        awaitSeqNr uint32 % seqNrnumber to wait for
+        msgbuffer MsgBuffer % Buffer to store network messages
     end
     
     methods
@@ -16,15 +16,16 @@ classdef NetworkOrderer < NetworkNode & handle
             % sampleTime - Sample time
             
             obj@NetworkNode(outputCount, 0, nextNode, nodeNr);
-            obj.sampleTime = sampleTime;
             obj.taskName = ['ordererTaskNode', num2str(nodeNr)];
-            obj.buffer = MsgBuffer();
+
+            obj.sampleTime = sampleTime;
+            obj.msgbuffer = MsgBuffer();
             obj.awaitSeqNr = 0;
         end
         
-        function [executionTime, obj] = ordererTask(obj, segment)
+        function [executionTime, obj] = ordererTask(obj, seg)
             % TrueTime task function
-            switch segment
+            switch seg
                 case 1
                     executionTime = obj.enqueueMsg();
                     
@@ -40,10 +41,10 @@ classdef NetworkOrderer < NetworkNode & handle
             % Handles incoming messages and stores them in the buffer
             
             receivedMsg = ttGetMsg();
-            transSeq = round(receivedMsg.sampleTS / obj.sampleTime);
-            element = BufferElement(transSeq, receivedMsg);
-            obj.buffer.pushTop(element);
-            obj.buffer.sort();
+            transSeqNr= round(receivedMsg.samplingTS / obj.sampleTime);
+            element = BufferElement(transSeqNr, receivedMsg);
+            obj.msgbuffer.pushTop(element);
+            obj.msgbuffer.sort();
             
             executionTime = 0;
         end
@@ -51,24 +52,32 @@ classdef NetworkOrderer < NetworkNode & handle
         function executionTime = sendTopMsg(obj)
             % Sends the top element if it's next in the sequence
             
-            if obj.buffer.elementCount == 0
+            if obj.msgbuffer.elementCount == 0
                 executionTime = -1;
                 return;
             end
             
-            topElement = obj.buffer.top();
+            topElement = obj.msgbuffer.getTop();
             if obj.awaitSeqNr == topElement.transmitTime
                 if obj.nextnode ~= 0
                     ttSendMsg(obj.nextnode, topElement.data, 80); % Send message (80 bits) to next node
                 end
-                ttAnalogOutVec(1:obj.Nout, topElement.data.data);
-                obj.buffer.popTop();
+                ttAnalogOutVec(1:obj.Nout, topElement.data.data)
+                ttCurrentTime
+                obj.msgbuffer.popTop();
                 obj.awaitSeqNr = obj.awaitSeqNr + 1;
                 
-                executionTime = (obj.buffer.elementCount ~= 0) * 1e-3;
-                if executionTime > 0
-                    ttSetNextSegment(2);
-                end
+                % executionTime = (obj.msgbuffer.elementCount ~= 0) * 1e-3;
+                % if executionTime > 0
+                %     ttSetNextSegment(2);
+                % end
+                 if(obj.msgbuffer.elementCount ~=0)
+                            executionTime = 0;
+                            ttSetNextSegment(2);
+                 else
+                            executionTime = -1;
+                 end
+
             else
                 executionTime = -1;
             end
@@ -78,7 +87,7 @@ classdef NetworkOrderer < NetworkNode & handle
             % Initializes TrueTime task and clears buffers
             
             obj.awaitSeqNr = 0;
-            obj.buffer.clear();
+            obj.msgbuffer.clear();
             
             % Initialize TrueTime kernel
             ttInitKernel('prioDM'); % Deadline-monotonic scheduling

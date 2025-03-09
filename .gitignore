@@ -7,7 +7,6 @@
 *.mexw32
 *.mexmaci64
 *.mexmaci
-*.slx
 *.slxc
 *.mdl
 *.fig

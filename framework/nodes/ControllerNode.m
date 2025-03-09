@@ -4,16 +4,18 @@ classdef ControllerNode < NetworkNode
     %
     % Properties:
     %   - ncsPlant (NcsPlant) : The networked control system plant.
-    %   - taskName (string) : Name of the TrueTime task.
-    %   - delayedControlSignals (double array) : Delayed control signal history.
-    %   - liftedStateHistory (double matrix) : Lifted states [xk; uk-1; uk-2; ... ; uk_deltabar].
-    %   - controlSignalHistory (double array) : Control signals sent by the controller.
+    %   - taskName (string) : Name of the TrueTime task. 
     %   - sendTimeHistory (double array) : Time instants when the controller sends signals.
+    %   - controlSignalHistory (double array) : Control signals sent by the controller.
+    %   - controlStrategy (string) : Control strategy used in the node
+    %   - controlParams (struct) : Control parameters for the strategy
     %
     % Methods:
-    %   - ControllerNode(nextnode, nodeNr, ncsPlant)
+    %   - ControllerNode(nextNode, nodeNr, ncsPlant)
     %   - init() : Initializes the TrueTime kernel and controller.
     %   - evaluate(segment) : Executes the control logic.
+    %
+    % See also: NetworkNode
 
     properties 
         ncsPlant NcsPlant % Networked control system plant
@@ -30,11 +32,12 @@ classdef ControllerNode < NetworkNode
             
             % Initialize NetworkNode
             obj@NetworkNode(ncsPlant.inputSize, 0, nextNode, nodeNr);
+            
             obj.generateTaskName(nodeNr);
-
             obj.ncsPlant = ncsPlant;
-            obj.delayedControlSignals = zeros(obj.ncsPlant.delaySteps, 1);
             obj.controlParams = controlParams;
+            obj.controlSignalHistory = [];
+            obj.sendTimeHistory = [];
 
             % Validate controlParams and instantiate the strategy
             if isstruct(controlParams)
@@ -51,9 +54,6 @@ classdef ControllerNode < NetworkNode
         function init(obj)
             % init Initializes the TrueTime kernel and resets controller states.
             
-            obj.controlSignalHistory = [];
-            obj.sendTimeHistory = [];
-
             % Initialize TrueTime kernel
             ttInitKernel('prioDM'); % Deadline-monotonic scheduling
             
@@ -63,26 +63,24 @@ classdef ControllerNode < NetworkNode
             ttAttachNetworkHandler(obj.taskName);
         end
         
-        function [executionTime, obj] = evaluate(obj, seg)
-            % evaluate Executes the control logic when a network message arrives.
-            
-            receivedMsg = ttGetMsg(); % Retrieve incoming network message
+        function [executionTime,obj] = evaluate(obj, ~)
+            % evaluate Executes the control logic when a network message arrives
+            rcvMsg = ttGetMsg(); % Retrieve incoming network message
             currentTime = ttCurrentTime();
 
             % Execute selected control strategy dynamically
-            controlSignal = obj.controlStrategy.execute(receivedMsg, obj.controlParams, obj.ncsPlant);
+            [controlSignal,obj.controlStrategy] = obj.controlStrategy.execute(rcvMsg, obj.controlParams, obj.ncsPlant);
 
             % update
             obj.controlSignalHistory = [obj.controlSignalHistory; controlSignal];
             obj.sendTimeHistory = [obj.sendTimeHistory; currentTime];
 
             % Transmit results to the next node
-            sentMsg = receivedMsg;
+            sentMsg = rcvMsg;
             sentMsg.data = controlSignal;
-            ttSendMsg(obj.nextnode, sentMsg, 80);
+            ttSendMsg(obj.nextNode, sentMsg, 80);
             executionTime = -1;
             ttAnalogOutVec(1:numel(sentMsg.data),sentMsg.data);
-
         end
 
         function generateTaskName(obj, nodeNr)
