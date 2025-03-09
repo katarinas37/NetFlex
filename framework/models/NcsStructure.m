@@ -81,8 +81,8 @@ classdef NcsStructure < handle
 
             % Create nodes
             obj.sensorNode = SensorNode(obj.ncsPlant.stateSize(), controllerNodeNumber, obj.SENSOR_NODE_NUMBER, obj.ncsPlant.sampleTime(), obj.simTime);
-            % obj.controllerNode = ControllerNode(testNodeNumber, controllerNodeNumber, obj.ncsPlant, obj.controlParams.('Ramp'), 'Ramp');
-            % obj.testNode = NetworkDelay(obj.ncsPlant.inputSize, testNode2Number, testNodeNumber, tauCa);
+            % obj.controllerNode = ControllerNode(testNodeNumber, controllerNodeNumber, obj.ncsPlant, obj.controlParams.('StateFeedbackStrategy'), 'StateFeedbackStrategy');
+            % obj.testNode = NetworkDelay(obj.ncsPlant.inputSize, 0, testNodeNumber, tauCa);
             % obj.testNode2 = NetworkOrderer(obj.ncsPlant.inputSize,0,testNode2Number,obj.ncsPlant.sampleTime);
             % --- test node ---    
             % obj.testNode = NetworkDelay(obj.ncsPlant.inputSize, 0, testNodeNumber, tauCa);
@@ -127,15 +127,15 @@ classdef NcsStructure < handle
             % Retrieves simulation results in a structured format.
             
             % Controller output signal
-            numSamples = length(obj.controllerNode.ukHist);
+            numSamples = length(obj.controllerNode.controlSignalHistory);
             timeVector = (0:(numSamples - 1)) * obj.ncsPlant.sampleTime();
-            results.uk = timeseries(obj.controllerNode.ukHist, timeVector);
+            results.uk = timeseries(obj.controllerNode.controlSignalHistory, timeVector);
             results.uk.DataInfo.Interpolation = 'zoh';
 
             % Network delay times
-            tauValues = cell2mat(cellfun(@(x) x.tau, obj.testNode, 'UniformOutput', false)');
-            results.tauCa = timeseries(tauValues, timeVector);
-            results.tauCa.DataInfo.Interpolation = 'zoh';
+            % tauValues = cell2mat(cellfun(@(x) x.tau, obj.testNode, 'UniformOutput', false)');
+            % results.tauCa = timeseries(tauValues, timeVector);
+            % results.tauCa.DataInfo.Interpolation = 'zoh';
         end
     end
 end

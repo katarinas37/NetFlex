@@ -10,7 +10,7 @@ classdef ExtendedStateFeedbackStrategy < IControlStrategy
             obj.delayedControlSignals = zeros(ncsPlant.delaySteps, 1);
         end
 
-        function controlSignal = execute(~, rcvMsg, controlParams, ncsPlant, ~)
+        function [controlSignal,obj] = execute(obj, rcvMsg, controlParams, ncsPlant, ~)
             % Simple control logic (e.g., just returning seq value)
             % Check if controlParams.k size is ncsPlant.n * ncsPlant.m
             assert(isequal(size(controlParams.k), [ncsPlant.inputSize, ncsPlant.stateSize + ncsPlant.delaySteps]), ...
@@ -20,7 +20,6 @@ classdef ExtendedStateFeedbackStrategy < IControlStrategy
             liftedState = [rcvMsg.data(:); obj.delayedControlSignals];
 
             controlSignal = controlParams.k * liftedState;
-
             obj.delayedControlSignals = [controlSignal; obj.delayedControlSignals(1:end-1)];
         end
     end

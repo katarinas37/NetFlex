@@ -22,6 +22,7 @@ system = ss(Ac, bc, eye(stateSize), zeros(stateSize,1));
 % Define control parameters
 controlParams.Ramp = struct();
 controlParams.StateFeedbackStrategy.k = [10, 20];
+controlParams.ExtendedStateFeedbackStrategy.k = [1,-2,12,zeros(1,delaySteps-1)];
 % Define observer parameters
 observerParams.SwitchLyapStrategy = struct();
 

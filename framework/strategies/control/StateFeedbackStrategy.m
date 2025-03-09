@@ -1,7 +1,9 @@
 classdef StateFeedbackStrategy < IControlStrategy
 
     methods
-        function controlSignal = execute(~, rcvMsg, controlParams, ncsPlant, ~)
+        function obj = StateFeedbackStrategy(~)
+        end
+        function [controlSignal,obj] = execute(obj, rcvMsg, controlParams, ncsPlant, ~)
             % Simple control logic (e.g., just returning seq value)
             % Check if controlParams.k size is ncsPlant.n * ncsPlant.m
             assert(isequal(size(controlParams.k), [ncsPlant.inputSize, ncsPlant.stateSize]), ...

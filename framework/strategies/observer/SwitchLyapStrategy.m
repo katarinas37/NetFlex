@@ -23,7 +23,7 @@ classdef SwitchLyapStrategy < IObserverStrategy
             obj.flagLost = 0;
         end
 
-        function predictedEstimates = execute(~, receivedMsg, observerParams, ncsPlant, ~)
+        function [predictedEstimates,obj] = execute(obj, receivedMsg, observerParams, ncsPlant, ~)
 
             % sentMsg.data(1:obj.ncsPlant.n) = xk1Obsv; % Send xk+1
             % sentMsg.data(end) = NaN;
