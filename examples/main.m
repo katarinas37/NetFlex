@@ -30,7 +30,7 @@ observerParams.SwitchLyapStrategy = struct();
 ncsPlant = NcsPlant(system, delaySteps, sampleTime);
 
 %% Create Networked Control System
-NCS = NcsStructure(ncsPlant, 'simTime', simulationTime, 'controlParams', controlParams, 'observerParams', observerParams);
+NCS = tNcsStructure(ncsPlant, 'networkeffects.json', 'simTime', simulationTime, 'controlParams', controlParams, 'observerParams', observerParams);
 
 %% Run simulation
 sim('NCS_sim');
