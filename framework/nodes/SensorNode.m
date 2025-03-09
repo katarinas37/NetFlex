@@ -9,7 +9,7 @@ classdef SensorNode < NetworkNode
     %   - updateTime (double) : Time interval for updating the waitbar.
     %
     % Methods:
-    %   - SensorNode(Nin, nextnode, nodenumber, sampleTime, simulationEnd)
+    %   - SensorNode(nIn, nextNode, nodeNr, sampleTime, simEnd)
     %   - init() : Initializes the TrueTime kernel and sensor task.
     %   - sampleStates(segment) : Periodically samples sensor data and sends messages.
     %   - delete() : Cleans up resources when the object is deleted.
@@ -18,22 +18,22 @@ classdef SensorNode < NetworkNode
         sampleTime double % Sampling time for periodic measurements
         sequenceNumber double % Sequence number for messages
         waitbarHandle % Handle to the simulation progress waitbar
-        simulationEnd double % End time of the simulation
+        simEnd double % End time of the simulation
         updateTime double % Time interval for updating the waitbar
     end
     
     methods
-        function obj = SensorNode(Nin, nextnode, nodenumber, sampleTime, simulationEnd)
+        function obj = SensorNode(nIn, nextNode, nodeNr, sampleTime, simEnd)
             % SensorNode Constructor for a sensor node in the network.
             %
             % Example:
             %   sensor = SensorNode(2, [3,4], 1, 0.01, 10);
             
             % Initialize NetworkNode
-            obj@NetworkNode(Nin, Nin, nextnode, nodenumber);
+            obj@NetworkNode(nIn, nIn, nextNode, nodeNr);
             obj.sampleTime = sampleTime;
             obj.sequenceNumber = 1;
-            obj.simulationEnd = simulationEnd;
+            obj.simEnd = simEnd;
         end
         
         function init(obj)
@@ -47,7 +47,7 @@ classdef SensorNode < NetworkNode
             % Create periodic sensor task
             startTime = 0.0;
             period = obj.sampleTime;
-            ttCreatePeriodicTask(sprintf('sensorTaskNode%d', obj.nodenumber), startTime, period, ...
+            ttCreatePeriodicTask(sprintf('sensorTaskNode%d', obj.nodeNr), startTime, period, ...
                 obj.taskWrapperName, @obj.sampleStates);
             
             obj.updateTime = 0;
@@ -62,28 +62,28 @@ classdef SensorNode < NetworkNode
         function [executionTime, obj] = sampleStates(obj, seg)
             % sampleStates Periodically samples sensor data and sends messages.
             
-            sensorData = ttAnalogInVec(1:obj.Nin); % Read sensor data
-            ttAnalogOutVec(1:obj.Nin, sensorData); % Output sensor data
+            sensorData = ttAnalogInVec(1:obj.nIn); % Read sensor data
+            ttAnalogOutVec(1:obj.nIn, sensorData); % Output sensor data
             TS = ttCurrentTime();
             
             % Create and send network message
             txMsg = NetworkMsg(TS, TS, sensorData, obj.sequenceNumber);
             obj.sequenceNumber = obj.sequenceNumber + 1;
             
-            for nextnode = obj.nextnode(:)' % Send to all connected nodes
-                if nextnode
-                    ttSendMsg(nextnode, txMsg, 80);
+            for nextNode = obj.nextNode(:)' % Send to all connected nodes
+                if nextNode
+                    ttSendMsg(nextNode, txMsg, 80);
                 end
             end
             
             executionTime = -1; % Indicate task completion
             
             % Update simulation progress waitbar
-            progress = (ttCurrentTime() + obj.sampleTime) / obj.simulationEnd;
+            progress = (ttCurrentTime() + obj.sampleTime) / obj.simEnd;
             progress = min(progress, 1);
             
             if any(obj.updateTime <= ttCurrentTime()) && isvalid(obj.waitbarHandle)
-                obj.updateTime = obj.updateTime + obj.simulationEnd / 100;
+                obj.updateTime = obj.updateTime + obj.simEnd / 100;
                 waitbar(progress, obj.waitbarHandle);
             end
             

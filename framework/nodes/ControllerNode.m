@@ -11,7 +11,7 @@ classdef ControllerNode < NetworkNode
     %   - sendTimeHistory (double array) : Time instants when the controller sends signals.
     %
     % Methods:
-    %   - ControllerNode(nextnode, nodeNr, ncsPlant)
+    %   - ControllerNode(nextNode, nodeNr, ncsPlant)
     %   - init() : Initializes the TrueTime kernel and controller.
     %   - evaluate(segment) : Executes the control logic.
 
@@ -91,7 +91,7 @@ classdef ControllerNode < NetworkNode
 
             % Transmit results to the next node
             sentMsg = NetworkMsg(receivedMsg.samplingTS, currentTime, controlSignal, receivedMsg.seqNr);
-            ttSendMsg(obj.nextnode, sentMsg, 80);
+            ttSendMsg(obj.nextNode, sentMsg, 80);
             executionTime = -1;
             ttAnalogOutVec(1:numel(sentMsg.data),sentMsg.data);
 

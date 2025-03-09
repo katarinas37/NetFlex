@@ -19,16 +19,16 @@ classdef NcsStructure < handle
 
     properties (SetAccess = public)
         ncsPlant NcsPlant % NCS plant specification
-        sensorNode SensorNode % Sensor node object
         simTime double % Largest simulation time
-        tauCaNode NetworkDelay % Variable delay object from controller to actuator
-        test1 NetworkDropoutSimple
-        controllerNode ControllerNode % Controller node object
+        sensorNode SensorNode % Sensor node object
+        controllerNode  % Controller node object
         controlParams struct % Control parameters for the controller
+        testNode % test node
+        % testNode2
     end
     
     properties (Dependent)
-        allnodes % Cell array of all nodes
+        allNodes % Cell array of all nodes
         results % Simulation results
     end
     
@@ -52,7 +52,7 @@ classdef NcsStructure < handle
             
             % Input parsing
             p = inputParser;
-            addParameter(p, 'simTime', 5000 * ncsPlant.samplingTime(), @(x) validateattributes(x, {'numeric'}, {'scalar', 'positive'}));
+            addParameter(p, 'simTime', 5000 * ncsPlant.sampleTime(), @(x) validateattributes(x, {'numeric'}, {'scalar', 'positive'}));
             addParameter(p, 'controlParams', struct(), @(x) isstruct(x)); % Allow empty struct
             parse(p, varargin{:});
 
@@ -69,24 +69,32 @@ classdef NcsStructure < handle
             % Initializes the sensor, controller, and delay nodes.
             actNodeNumber = obj.SENSOR_NODE_NUMBER + 1;
             controllerNodeNumber = actNodeNumber;
-            delayCaNodeNumber = actNodeNumber + 1;
-            test1Node = actNodeNumber + 2;
+            testNodeNumber = actNodeNumber + 1;
+            testNode2Number = actNodeNumber + 2;
 
             tauCa = obj.generateDelays();
             
             load('networkeffects.mat', 'vec_ca'); % Load only required variable
 
             % Create nodes
-            obj.controllerNode = ControllerNode(delayCaNodeNumber, controllerNodeNumber, obj.ncsPlant, obj.controlParams.('Ramp'), 'Ramp');
-            obj.tauCaNode = NetworkDelay(1, test1Node, delayCaNodeNumber, tauCa*0);
-            obj.test1 = NetworkDropoutSimple(1, 0, test1Node, vec_ca);
-            obj.sensorNode = SensorNode(obj.ncsPlant.stateSize(), controllerNodeNumber, ...
-                obj.SENSOR_NODE_NUMBER, obj.ncsPlant.samplingTime(), obj.simTime);
+            obj.sensorNode = SensorNode(obj.ncsPlant.stateSize(), controllerNodeNumber, obj.SENSOR_NODE_NUMBER, obj.ncsPlant.sampleTime(), obj.simTime);
+            obj.controllerNode = ControllerNode(testNodeNumber, controllerNodeNumber, obj.ncsPlant, obj.controlParams.('Ramp'), 'Ramp');
+            obj.testNode = NetworkDelay(obj.ncsPlant.inputSize, 0, testNodeNumber, tauCa);
+            % obj.testNode2 = NetworkOrderer(obj.ncsPlant.inputSize,0,testNode2Number,obj.ncsPlant.sampleTime);
+            % --- test node ---    
+            % obj.testNode = NetworkDelay(obj.ncsPlant.inputSize, 0, testNodeNumber, tauCa);
+            % obj.testNode = NetworkBuffer(obj.ncsPlant.inputSize,0,testNodeNumber,obj.ncsPlant.sampleTime,'fixed',3*obj.ncsPlant.sampleTime);
+            % obj.testNode = NetworkBuffer(obj.ncsPlant.inputSize,0,testNodeNumber,obj.ncsPlant.sampleTime,'multirate',2);
+            % obj.testNode = NetworkDropoutSimple(obj.ncsPlant.inputSize,0, testNodeNumber,vec_ca);
+            % obj.testNode = NetworkDropoutDetection(obj.ncsPlant.inputSize,0, testNodeNumber,1e-5 ,vec_ca);
+            % obj.testNode = NetworkDelayWithDropouts(obj.ncsPlant.inputSize,0,testNodeNumber,obj.ncsPlant.sampleTime,tauCa/10,vec_ca,3);
+            % -----------------
+            % obj.controllerNode = ObserverNode(0, controllerNodeNumber,obj.ncsPlant);
         end
 
         function tauCa = generateDelays(obj)
             % Generates random delays using network effect data.
-            Td = obj.ncsPlant.samplingTime();
+            Td = obj.ncsPlant.sampleTime();
             
             % Check if the external file exists before loading
             if exist('networkeffects.mat', 'file') ~= 2
@@ -99,14 +107,16 @@ classdef NcsStructure < handle
             tauCa = ceil(tau_ca / 1e-4) * 1e-4;
         end
 
-        function allNodes = get.allnodes(obj)
+        function allNodes = get.allNodes(obj)
             % Returns a cell array of all nodes in the NCS.
-            allNodes = [{obj.sensorNode}; {obj.controllerNode}; {obj.tauCaNode}; {obj.test1}];
+            % allNodes = [{obj.sensorNode}; {obj.controllerNode}; {obj.tauCaNode}; {obj.test1}];
+            % allNodes = [{obj.sensorNode};{obj.controllerNode};{obj.testNode};{obj.testNode2}];
+            allNodes = [{obj.sensorNode};{obj.controllerNode};{obj.testNode}];
         end
 
         function nr = getMaxNodeNumber(obj)
             %returns the maximum node number
-            all_nodenumbers = cellfun(@(x) x.nodenumber,obj.allnodes);
+            all_nodenumbers = cellfun(@(x) x.nodeNr,obj.allNodes);
             nr = max(all_nodenumbers);
         end
         
@@ -114,13 +124,13 @@ classdef NcsStructure < handle
             % Retrieves simulation results in a structured format.
             
             % Controller output signal
-            numSamples = length(obj.controllerNode.ukHist);
-            timeVector = (0:(numSamples - 1)) * obj.ncsPlant.samplingTime();
-            results.uk = timeseries(obj.controllerNode.ukHist, timeVector);
+            numSamples = length(obj.controllerNode.controlSignalHistory);
+            timeVector = (0:(numSamples - 1)) * obj.ncsPlant.sampleTime();
+            results.uk = timeseries(obj.controllerNode.controlSignalHistory, timeVector);
             results.uk.DataInfo.Interpolation = 'zoh';
 
             % Network delay times
-            tauValues = cell2mat(cellfun(@(x) x.tau, obj.tauCaNode, 'UniformOutput', false)');
+            tauValues = cell2mat(cellfun(@(x) x.tau, obj.testNode, 'UniformOutput', false)');
             results.tauCa = timeseries(tauValues, timeVector);
             results.tauCa.DataInfo.Interpolation = 'zoh';
         end
