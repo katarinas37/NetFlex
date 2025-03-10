@@ -1,34 +1,55 @@
 classdef MsgBuffer < handle
     % MsgBuffer Class for storing and managing network messages.
-    % Provides efficient message queuing operations for network communication.
+    % This class provides a message queue for handling network messages efficiently. 
+    % Messages can be pushed to the front (highest priority) or back (FIFO), 
+    % sorted based on transmission time, and retrieved in sequence.
+    %
+    % This class provides a message queue for handling network messages efficiently. 
+    %
+    % Properties:
+    %   - elements (cell array) : Internal storage for buffer elements.
+    %   - elementCount (integer, dependent) : Number of messages in the buffer.
+    %   - transmitTimes (double array, dependent) : Array of transmission times.
     %
     % Methods:
-    %   - pushTop(element)    : Add element to the top (highest priority)
-    %   - pushBack(element)   : Add element to the back (FIFO)
-    %   - popTop()            : Remove and return the highest priority element
-    %   - clear()             : Reset the buffer
-    %   - sortBuffer()        : Sort elements by transmission time
-    %   - getElementCount()   : Returns the number of elements
-    %   - getTransmitTimes()  : Returns an array of transmit times
-    %   - getTop()            : Returns the top element without removing it
+    %   - MsgBuffer() : Constructor, initializes an empty buffer.
+    %   - pushTop(element) : Adds an element to the top (highest priority).
+    %   - pushBack(element) : Adds an element to the back (FIFO order).
+    %   - popTop() : Removes the highest priority element.
+    %   - getTop() : Returns the highest priority element without removing it.
+    %   - clear() : Clears all elements from the buffer.
+    %   - sortBuffer() : Sorts elements in ascending order of transmission time.
+    %   - getElementCount() : Returns the number of elements in the buffer.
+    %   - getTransmitTimes() : Returns an array of all transmit times.
+    %
+    % See also: BufferElement, NetworkMsg
 
-    properties (Access = private)
-        elements % Internal storage for buffer elements
+    properties (Access = public)
+        elements % Internal storage for buffer elements (cell array)
     end
     
     properties (Dependent)
-        elementCount % Returns the number of buffered elements
-        transmitTimes % Returns an array of all transmit times
+        elementCount % Number of buffered elements
+        transmitTimes % Array of transmission times for all elements
     end
     
     methods
         function obj = MsgBuffer()
-            % Constructor: Initializes an empty buffer.
+            % MsgBuffer Constructor for an empty message buffer.
+            %
+            % Initializes an empty cell array to store messages.            
+            
             obj.elements = {};
         end
         
         function pushTop(obj, element)
-            % Adds an element to the top of the queue (highest priority).
+            % pushTop Adds an element to the top of the buffer (highest priority).
+            %
+            % The inserted element will be processed before others in the queue.
+            %
+            % Inputs:
+            %   - element (BufferElement) : The message element to be added.
+
             if ~isa(element, 'BufferElement')
                 error('MsgBuffer:InvalidType', 'Only BufferElement objects can be added.');
             end
@@ -36,7 +57,13 @@ classdef MsgBuffer < handle
         end
         
         function pushBack(obj, element)
-            % Adds an element to the back of the queue (FIFO behavior).
+            % pushBack Adds an element to the back of the buffer (FIFO behavior).
+            %
+            % Messages pushed to the back will be processed after earlier messages.
+            %
+            % Inputs:
+            %   - element (BufferElement) : The message element to be added.
+            
             if ~isa(element, 'BufferElement')
                 error('MsgBuffer:InvalidType', 'Only BufferElement objects can be added.');
             end
@@ -44,7 +71,13 @@ classdef MsgBuffer < handle
         end
         
         function ret = getTop(obj)
-            % Returns the top element without removing it.
+            % getTop Retrieves the top element without removing it.
+            %
+            % If the buffer is empty, an error is raised.
+            %
+            % Outputs:
+            %   - ret (BufferElement) : The highest-priority message.
+            
             if obj.elementCount > 0
                 ret = obj.elements{1};
             else
@@ -53,7 +86,10 @@ classdef MsgBuffer < handle
         end
         
         function obj = popTop(obj)
-            % Removes the top element from the queue.
+            % popTop Removes the top element from the buffer.
+            %
+            % If the buffer is empty, a warning is displayed. 
+
             if obj.elementCount > 0
                 obj.elements(1) = [];
             else
@@ -62,12 +98,19 @@ classdef MsgBuffer < handle
         end
         
         function clear(obj)
-            % Clears all elements from the buffer.
+            % clear Removes all elements from the buffer.
+            %
+            % This method resets the buffer to an empty state.
+            
             obj.elements = {};
         end
         
         function sortBuffer(obj)
-            % Sorts elements by transmit time (ascending order).
+            % sortBuffer Sorts elements in ascending order of transmission time.
+            %
+            % This ensures messages are processed in the correct order based on
+            % their designated transmission times.
+            
             if obj.elementCount > 1
                 [~, idx] = sort(obj.transmitTimes());
                 obj.elements = obj.elements(idx);
@@ -75,12 +118,20 @@ classdef MsgBuffer < handle
         end
         
         function ret = get.elementCount(obj)
-            % Returns the number of elements in the buffer.
+            % elementCount Returns the number of elements in the buffer.
+            %
+            % Outputs:
+            %   - ret (integer) : Number of buffered messages.
+
             ret = numel(obj.elements);
         end
 
         function ret = get.transmitTimes(obj)
-            % Returns an array of transmit times for all elements.
+            % transmitTimes Returns an array of all transmission times.
+            %
+            % Outputs:
+            %   - ret (double array) : List of transmission times.
+            
             if obj.elementCount > 0
                 ret = cellfun(@(x) x.transmitTime, obj.elements);
             else

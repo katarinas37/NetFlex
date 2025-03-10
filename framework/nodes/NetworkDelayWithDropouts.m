@@ -13,9 +13,8 @@ classdef NetworkDelayWithDropouts < VariableDelay
     %
     % Methods:
     %   - NetworkDelayWithDropouts(outputCount, nextNode, nodeNumber, sampleTime, delays, dataLoss, dataLossMax)
-    %   - calculateTransmitTime(receivedMsg) : Computes the transmission time for received messages.
+    %   - calculateTransmitTime(rcvMsg) : Computes the transmission time for received messages.
     %   - init() : Resets the delay object.
-    %
     
     properties
         delays double      % Vector of time delays for each received message
@@ -26,7 +25,20 @@ classdef NetworkDelayWithDropouts < VariableDelay
     
     methods
         function obj = NetworkDelayWithDropouts(outputCount, nextNode, nodeNumber, sampleTime, delays, dataLoss, dataLossMax)
+            % NetworkDelayWithDropouts Constructor for a network delay object with dropouts.
+            %
+            % Initializes the delay node with predefined delays and a dropout mask.
+            %
+            % Inputs:
+            %   - outputCount (integer) : Number of outputs from this node.
+            %   - nextNode (integer or vector) : Node(s) to which messages should be sent.
+            %   - nodeNumber (integer) : Unique identifier for this delay node.
+            %   - sampleTime (double) : Sampling time of the system.
+            %   - delays (double array) : Predefined delay values for each message.
+            %   - dataLoss (logical array) : Binary mask indicating dropped packets (0 = lost, 1 = received).
+            %   - dataLossMax (integer) : Maximum number of consecutive dropouts allowed.
 
+            % Call parent constructor (VariableDelay)
             obj@VariableDelay(outputCount, nextNode, nodeNumber);
             obj.sampleTime = sampleTime;      
             obj.delays = delays;
@@ -34,7 +46,7 @@ classdef NetworkDelayWithDropouts < VariableDelay
             obj.dataLossMax = dataLossMax;
         end
         
-        function [transmitTime,sentMsg] = calculateTransmitTime(obj, receivedMsg) 
+        function [transmitTime,sentMsg] = calculateTransmitTime(obj, rcvMsg) 
             % calculateTransmitTime Computes the message transmission time while handling dropouts.
             %
             % This method implements a buffering mechanism:
@@ -57,14 +69,14 @@ classdef NetworkDelayWithDropouts < VariableDelay
             % computed values, ensuring that the earliest valid transmission time is used.
             
             currentTime = ttCurrentTime();
-            sentMsg = receivedMsg;
+            sentMsg = rcvMsg;
             transmitTimes = zeros(1, obj.dataLossMax + 1);
 
             for k = 0:obj.dataLossMax
-                seqIndex = receivedMsg.seqNr + k;
+                seqIndex = rcvMsg.seqNr + k;
 
                 if obj.dataLoss(seqIndex)  % If packet is successfully transmitted
-                    transmitTimes(k + 1) = obj.delays(seqIndex) + receivedMsg.lastTransmitTS(end) + obj.sampleTime * k - 1e-6;
+                    transmitTimes(k + 1) = obj.delays(seqIndex) + rcvMsg.lastTransmitTS(end) + obj.sampleTime * k - 1e-6;
                 else  % If packet is lost
                     transmitTimes(k + 1) = 1e6; % Assign large delay to lost packets
                 end
@@ -79,7 +91,11 @@ classdef NetworkDelayWithDropouts < VariableDelay
         end
         
         function init(obj)
-            %init function to reset the counter and the VariableDelay object
+            % init Resets the delay object.
+            %
+            % This method calls the parent class (VariableDelay) initializer to 
+            % reset any stored state.
+            
             init@VariableDelay(obj);
         end
     end
