@@ -1,4 +1,4 @@
-classdef SwitchLyapStrategy < IObserverStrategy
+classdef SwitchedLyapStrategy < IObserverStrategy
 
     properties
         Ad double % Discrete-time system matrix
@@ -11,7 +11,7 @@ classdef SwitchLyapStrategy < IObserverStrategy
     end
 
     methods
-        function obj = SwitchLyapStrategy(ncsPlant)
+        function obj = SwitchedLyapStrategy(ncsPlant)
             % Constructor for SwitchLyapStrategy
 
             obj.Ad = ncsPlant.discreteSystem.A; 

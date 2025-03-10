@@ -1,6 +1,10 @@
 classdef NetworkDelay < VariableDelay
     % NetworkDelay Configures the TrueTime kernel to act as a variable network delay.
     %
+    % This class models a variable network delay, where each received message 
+    % experiences a predefined time delay before transmission. The delays are 
+    % stored in a vector and assigned based on the message sequence number.
+    %
     % Properties:
     %   - delays (double array) : Vector of time delays for each received message.
     %
@@ -17,21 +21,34 @@ classdef NetworkDelay < VariableDelay
     
     methods
         function obj = NetworkDelay(outputCount, nextNode, nodeNumber, delays)
-            % NetworkDelay Constructs an instance of this class.
+            % NetworkDelay Constructor for the network delay object.
             %
-            % Example:
-            %   delay = NetworkDelay(1, 2, 3, [0.01, 0.02, 0.03]);
-            
-            % Call parent constructor
+            % Initializes a network delay node in the TrueTime simulation.
+            %
+            % Inputs:
+            %   - outputCount (integer) : Number of outputs from this node.
+            %   - nextNode (integer or vector) : Node(s) to which messages should be sent.
+            %   - nodeNumber (integer) : Unique identifier for this delay node.
+            %   - delays (double array) : Predefined delay values for each message sequence.
+
+            % Call parent constructor (VariableDelay)
             obj@VariableDelay(outputCount, nextNode, nodeNumber);
             obj.delays = delays;
         end
         
         function [transmitTime, sentMsg] = calculateTransmitTime(obj, receivedMsg) 
-            % calculateTransmitTime Computes message transmission time.
+            % calculateTransmitTime Computes the transmission time for a received message.
             %
-            % Example:
-            %   transmitTime = obj.calculateTransmitTime(receivedMessage);
+            % This method determines when a message should be transmitted based on its 
+            % assigned delay value. The delay is selected from the `delays` vector 
+            % using the message's sequence number.
+            %
+            % Inputs:
+            %   - receivedMsg (NetworkMsg) : Incoming network message.
+            %
+            % Outputs:
+            %   - transmitTime (double) : Scheduled time for message transmission.
+            %   - sentMsg (NetworkMsg) : Copy of the received message.
 
             currentTime = ttCurrentTime();
             sentMsg = receivedMsg;
@@ -45,6 +62,10 @@ classdef NetworkDelay < VariableDelay
         
         function init(obj)
             % init Resets the delay object.
+            %
+            % This method calls the parent class (VariableDelay) initializer to 
+            % reset any stored state.
+            
             init@VariableDelay(obj);
         end
     end

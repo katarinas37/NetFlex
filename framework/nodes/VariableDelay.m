@@ -26,16 +26,16 @@ classdef VariableDelay < NetworkNode & handle
     end
     
     methods
-        function obj = VariableDelay(outputCount, nextNode, nodeNumber)
+        function obj = VariableDelay(outputCount, nextNode, nodeNr)
             % VariableDelay Constructs a variable delay network node.
             %
             % Example:
             %   delayNode = VariableDelay(1, [2,3], 4);
             
             % Call parent constructor
-            obj@NetworkNode(outputCount, 0, nextNode, nodeNumber);
-            obj.generateSendTaskName(nodeNumber);
-            obj.generateDelayTaskName(nodeNumber);
+            obj@NetworkNode(outputCount, 0, nextNode, nodeNr);
+            obj.generateSendTaskName(nodeNr);
+            obj.generateDelayTaskName(nodeNr);
             obj.msgBuffer = MsgBuffer();
         end
         
@@ -53,7 +53,7 @@ classdef VariableDelay < NetworkNode & handle
                     % Compute transmission time
                     [transmitTime, sentMsg] = obj.calculateTransmitTime(receivedMsg);
                     sentMsg.lastTransmitTS = [sentMsg.lastTransmitTS(end), transmitTime];
-
+                    sentMsg.nodeId = obj.nodeNr;
                     if obj.msgBuffer.elementCount == 0 || transmitTime < obj.msgBuffer.getTop().transmitTime
                         % Cancel existing job, insert new packet at the beginning, and reschedule job
                         try
@@ -150,7 +150,7 @@ classdef VariableDelay < NetworkNode & handle
         end
 
         function generateDelayTaskName(obj, nodeNumber)
-            % setTaskName Sets the task name for the controller node.
+            % setTaskName Sets the task name for the Variable Delay node.
             obj.delayTaskName = ['DelayTaskNode', num2str(nodeNumber)];
         end
     end
