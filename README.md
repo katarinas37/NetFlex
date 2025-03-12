@@ -1,6 +1,6 @@
 ![NetFlex Logo](docs/assets/logo.png)
 
-# Networked Control Systems Simulation Framework**
+# **Networked Control Systems Simulation Framework**
 
 ## 🖇️ **Bridging the Gap between Communication and Control**
 NetFlex is a **MATLAB/Simulink-based** simulation framework for **Networked Control Systems (NCS)**, enabling realistic modeling of **network effects** such as **delays, data loss, and packet reordering**. It provides a **modular and scalable** structure, allowing users to define **custom control and observer strategies**, configure network conditions, and simulate various scenarios.
