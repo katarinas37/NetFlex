@@ -33,7 +33,7 @@ NetFlex-Framework/
 │   │── strategies/        # Different control and observer strategies (easily expandable)
 │   └── utils/             # Helper functions (TrueTime handling, data handling, etc.)
 │── libs/                  # TrueTime
-│   └──  truetime-2.0/      # Contains TrueTime compatible with MATLAB R2022a and later
+│   └──  truetime-2.0/     # Contains TrueTime compatible with MATLAB R2022a and later
 │── LICENSE                # License details
 └── README.md              # Project overview
 ```
