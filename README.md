@@ -1,4 +1,4 @@
-![NetFlex Logo](logo.png)
+![NetFlex Logo](docs/assets/logo.png)
 
 # **NetFlex - Networked Control Systems Simulation Framework**
 
