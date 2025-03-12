@@ -1,29 +1,34 @@
 classdef MsgBuffer < handle
     % MsgBuffer Class for storing and managing network messages.
-    % This class provides a message queue for handling network messages efficiently. 
-    % Messages can be pushed to the front (highest priority) or back (FIFO), 
-    % sorted based on transmission time, and retrieved in sequence.
+    % ----------------------------------------------------------
+    % This class implements a message queue for handling network messages 
+    % efficiently. It provides mechanisms to:
+    %   - Push messages to the front (highest priority) or back (FIFO order).
+    %   - Retrieve and remove messages in sequence.
+    %   - Sort messages based on their transmission time.
     %
-    % This class provides a message queue for handling network messages efficiently. 
+    % This is useful in networked control systems where messages arrive 
+    % with delays and need to be processed in a structured manner.
     %
-    % Properties:
-    %   - elements (cell array) : Internal storage for buffer elements.
-    %   - elementCount (integer, dependent) : Number of messages in the buffer.
-    %   - transmitTimes (double array, dependent) : Array of transmission times.
+    % ----------------------------------------------------------
+    % PROPERTIES:
+    %   - elements (cell array): Stores buffered message objects.
+    %   - elementCount (integer, dependent): Number of messages in the buffer.
+    %   - transmitTimes (double array, dependent): Transmission times of messages.
     %
-    % Methods:
-    %   - MsgBuffer() : Constructor, initializes an empty buffer.
-    %   - pushTop(element) : Adds an element to the top (highest priority).
-    %   - pushBack(element) : Adds an element to the back (FIFO order).
-    %   - popTop() : Removes the highest priority element.
-    %   - getTop() : Returns the highest priority element without removing it.
-    %   - clear() : Clears all elements from the buffer.
-    %   - sortBuffer() : Sorts elements in ascending order of transmission time.
-    %   - getElementCount() : Returns the number of elements in the buffer.
-    %   - getTransmitTimes() : Returns an array of all transmit times.
+    % METHODS:
+    %   - MsgBuffer(): Constructor to initialize an empty buffer.
+    %   - pushTop(element): Adds an element at the front (highest priority).
+    %   - pushBack(element): Adds an element at the back (FIFO order).
+    %   - popTop(): Removes the highest-priority element.
+    %   - getTop(): Retrieves the highest-priority element without removing it.
+    %   - clear(): Clears all elements in the buffer.
+    %   - sortBuffer(): Sorts elements in ascending order of transmission time.
+    %   - getElementCount(): Returns the number of elements in the buffer.
+    %   - getTransmitTimes(): Returns an array of all transmit times.
     %
     % See also: BufferElement, NetworkMsg
-
+    
     properties (Access = public)
         elements % Internal storage for buffer elements (cell array)
     end

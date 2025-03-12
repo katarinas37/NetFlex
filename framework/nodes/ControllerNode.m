@@ -78,7 +78,7 @@ classdef ControllerNode < NetworkNode
             
             rcvMsg = ttGetMsg(); % Retrieve incoming network message
             currentTime = ttCurrentTime();
-
+            
             % Execute selected control strategy dynamically
             [controlSignal,obj.controlStrategy] = obj.controlStrategy.execute(rcvMsg, obj.controlParams, obj.ncsPlant);
 
@@ -90,7 +90,11 @@ classdef ControllerNode < NetworkNode
             sentMsg = rcvMsg;
             sentMsg.data = controlSignal;
             sentMsg.nodeId = obj.nodeNr;
-            ttSendMsg(obj.nextNode, sentMsg, 80);
+            for nextNode = obj.nextNode(:)'
+                if nextNode
+                    ttSendMsg(obj.nextNode, sentMsg, 80);
+                end
+            end
             executionTime = -1;
             ttAnalogOutVec(1:numel(sentMsg.data),sentMsg.data);
         end

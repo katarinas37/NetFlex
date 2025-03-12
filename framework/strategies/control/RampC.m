@@ -1,4 +1,4 @@
-classdef Ramp < IControlStrategy
+classdef RampC < IControlStrategy
     % Ramp Implements a simple increasing strategy for debugging.
     %
     % This control strategy assigns a control signal equal to the sequence number 
@@ -14,7 +14,7 @@ classdef Ramp < IControlStrategy
     %   - execute(rcvMessage, ~, ~, ~) : Assigns control signal based on sequence number.
     
     methods
-        function obj = Ramp(~)
+        function obj = RampC(~)
             % Ramp Constructor for the simple ramp strategy.
             %
             % This constructor does not require any initialization, as the ramp 

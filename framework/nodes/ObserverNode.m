@@ -83,14 +83,18 @@ classdef ObserverNode < NetworkNode & handle
             [estimates,obj.observerStrategy] = obj.observerStrategy.execute(rcvMsg, obj.observerParams, obj.ncsPlant);
 
             % Update
-            obj.estimatesHistory = [obj.estimatesHistory; estimates];
+            obj.estimatesHistory = [obj.estimatesHistory, estimates];
             obj.sendTimeHistory = [obj.sendTimeHistory; currentTime];
             
             % Transmit results to the next node
             sentMsg = rcvMsg;
             sentMsg.data = estimates;
             sentMsg.nodeId = obj.nodeNr;
-            ttSendMsg(obj.nextNode, sentMsg, 80); % Send message (80 bits) to next node
+            for nextNode = obj.nextNode(:)'
+                if nextNode
+                    ttSendMsg(obj.nextNode, sentMsg, 80);
+                end
+            end
             executionTime = -1;
             ttAnalogOutVec(1:numel(sentMsg.data),sentMsg.data);
         end

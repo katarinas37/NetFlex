@@ -9,7 +9,7 @@ classdef NetworkDelay < VariableDelay
     %   - delays (double array) : Vector of time delays for each received message.
     %
     % Methods:
-    %   - NetworkDelay(outputCount, nextNode, nodeNumber, delayTimes)
+    %   - NetworkDelay(outputCount, nextNode, nodeNr, delayTimes)
     %   - calculateTransmitTime(receivedMessage) : Computes message transmission time.
     %   - init() : Resets the delay object.
     %
@@ -20,7 +20,7 @@ classdef NetworkDelay < VariableDelay
     end
     
     methods
-        function obj = NetworkDelay(outputCount, nextNode, nodeNumber, delays)
+        function obj = NetworkDelay(outputCount, nextNode, nodeNr, delays)
             % NetworkDelay Constructor for the network delay object.
             %
             % Initializes a network delay node in the TrueTime simulation.
@@ -28,15 +28,15 @@ classdef NetworkDelay < VariableDelay
             % Inputs:
             %   - outputCount (integer) : Number of outputs from this node.
             %   - nextNode (integer or vector) : Node(s) to which messages should be sent.
-            %   - nodeNumber (integer) : Unique identifier for this delay node.
+            %   - nodeNr (integer) : Unique identifier for this delay node.
             %   - delays (double array) : Predefined delay values for each message sequence.
 
             % Call parent constructor (VariableDelay)
-            obj@VariableDelay(outputCount, nextNode, nodeNumber);
+            obj@VariableDelay(outputCount, nextNode, nodeNr);
             obj.delays = delays;
         end
         
-        function [transmitTime, sentMsg] = calculateTransmitTime(obj, receivedMsg) 
+        function [transmitTime, sentMsg] = calculateTransmitTime(obj, rcvMsg) 
             % calculateTransmitTime Computes the transmission time for a received message.
             %
             % This method determines when a message should be transmitted based on its 
@@ -44,16 +44,15 @@ classdef NetworkDelay < VariableDelay
             % using the message's sequence number.
             %
             % Inputs:
-            %   - receivedMsg (NetworkMsg) : Incoming network message.
+            %   - rcvMsg (NetworkMsg) : Incoming network message.
             %
             % Outputs:
             %   - transmitTime (double) : Scheduled time for message transmission.
             %   - sentMsg (NetworkMsg) : Copy of the received message.
 
             currentTime = ttCurrentTime();
-            sentMsg = receivedMsg;
-            transmitTime = obj.delays(receivedMsg.seqNr) + receivedMsg.lastTransmitTS(end);
-        
+            sentMsg = rcvMsg;
+            transmitTime = obj.delays(rcvMsg.seqNr) + rcvMsg.lastTransmitTS(end);
             % Sanity check: Ensure transmitTime is not in the past
             if currentTime > transmitTime
                 error('Invalid transmitTime: currentTime: %.3f, transmitTime: %.3f', currentTime, transmitTime);

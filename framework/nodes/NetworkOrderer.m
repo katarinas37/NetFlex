@@ -8,7 +8,7 @@ classdef NetworkOrderer < NetworkNode & handle
     %   - taskName (char) : Name of the TrueTime task.
     %   - sampleTime (double) : Sampling time.
     %   - awaitSeqNr (uint32) : Sequence number of the next expected message.
-    %   - msgbuffer (MsgBuffer) : Buffer to store and manage incoming messages.
+    %   - msgBuffer (msgBuffer) : Buffer to store and manage incoming messages.
     %   - sentMsgDataHistory (double array) : History of sent message data.
     %   - sentMsgTimeHistory (double array) : History of sent message timestamps.
     %
@@ -19,13 +19,13 @@ classdef NetworkOrderer < NetworkNode & handle
     %   - sendTopMsg() : Sends the top message from the buffer if it is next in sequence.
     %   - init() : Initializes the TrueTime kernel and clears buffers.
     %
-    % See also: NetworkNode, MsgBuffer
+    % See also: NetworkNode, msgBuffer
     
     properties
         taskName char % TrueTime task name
         sampleTime double % Sample time
         awaitSeqNr uint32 % seqNrnumber to wait for
-        msgbuffer MsgBuffer % Buffer to store network messages
+        msgBuffer MsgBuffer % Buffer to store network messages
         sentMsgDataHistory double
         sentMsgTimeHistory double
     end
@@ -47,7 +47,7 @@ classdef NetworkOrderer < NetworkNode & handle
             
             obj.generateTaskName(nodeNr);
             obj.sampleTime = sampleTime;
-            obj.msgbuffer = MsgBuffer();
+            obj.msgBuffer = MsgBuffer();
             obj.awaitSeqNr = 0;
             obj.sentMsgDataHistory = [];
             obj.sentMsgTimeHistory = [];
@@ -86,11 +86,12 @@ classdef NetworkOrderer < NetworkNode & handle
             %   - executionTime (double) : Returns 0 (immediate execution).
 
             rcvMsg = ttGetMsg();
-            rcvMsg.nodeId = obj.nodeNr;
+            sentMsg = rcvMsg;
+            sentMsg.nodeId = obj.nodeNr;
             transSeqNr= round(rcvMsg.samplingTS / obj.sampleTime);
-            element = BufferElement(transSeqNr, rcvMsg);
-            obj.msgbuffer.pushTop(element);
-            obj.msgbuffer.sortBuffer();
+            element = BufferElement(transSeqNr, sentMsg);
+            obj.msgBuffer.pushTop(element);
+            obj.msgBuffer.sortBuffer();
             
             executionTime = 0;
         end
@@ -105,23 +106,25 @@ classdef NetworkOrderer < NetworkNode & handle
             %   - executionTime (double) : Indicates whether the task should continue.
 
             % If the buffer is empty, do nothing            
-            if obj.msgbuffer.elementCount == 0
+            if obj.msgBuffer.elementCount == 0
                 executionTime = -1;
                 return;
             end
-            
-            topElement = obj.msgbuffer.getTop();
+            topElement = obj.msgBuffer.getTop();
+            sentMsg = topElement.data;
+            sentMsg.lastTransmitTS = ttCurrentTime;
             if obj.awaitSeqNr == topElement.transmitTime
                 if obj.nextNode ~= 0
-                    ttSendMsg(obj.nextNode, topElement.data, 80); % Send message (80 bits) to next node
+                    ttSendMsg(obj.nextNode, sentMsg, 80); % Send message (80 bits) to next node
                 end
+
                 obj.sentMsgDataHistory = [obj.sentMsgDataHistory,topElement.data.data];
                 obj.sentMsgTimeHistory = [obj.sentMsgTimeHistory,ttCurrentTime()];
                 ttAnalogOutVec(1:obj.nOut, topElement.data.data)
-                obj.msgbuffer.popTop();
+                obj.msgBuffer.popTop();
                 obj.awaitSeqNr = obj.awaitSeqNr + 1;
                 
-                if(obj.msgbuffer.elementCount ~=0)
+                if(obj.msgBuffer.elementCount ~=0)
                             executionTime = 0;
                             ttSetNextSegment(2);
                  else
@@ -140,7 +143,7 @@ classdef NetworkOrderer < NetworkNode & handle
 
             % Reset sequence number tracking            
             obj.awaitSeqNr = 0;
-            obj.msgbuffer.clear();
+            obj.msgBuffer.clear();
             
             % Initialize TrueTime kernel
             ttInitKernel('prioDM'); % Deadline-monotonic scheduling

@@ -37,7 +37,7 @@ classdef StateFeedbackStrategy < IControlStrategy
                 'Size of controlParams.k must be %d x %d', ncsPlant.inputSize, ncsPlant.stateSize);
             
             % Compute control signal using state feedback
-            controlSignal = controlParams.k * rcvMsg.data.';
+            controlSignal = -controlParams.k * rcvMsg.data;
         end
     end
 end

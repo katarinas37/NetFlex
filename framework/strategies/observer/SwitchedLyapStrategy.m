@@ -1,4 +1,21 @@
 classdef SwitchedLyapStrategy < IObserverStrategy
+    % SwitchedLyapStrategy
+    % This class implements a switched Lyapunov-based observer strategy for 
+    % state estimation in a networked control system (NCS). The observer 
+    % handles packet loss by switching between different observer gains.
+    % 
+    % Properties:
+    %   - Ad: Discrete-time system matrix
+    %   - Bd: Discrete-time input matrix
+    %   - Cd: Output matrix
+    %   - Dd: Direct feedthrough matrix
+    %   - flagLost: Tracks consecutive packet losses
+    %   - ekYHist: Stores observation error history
+    %   - estimatesHistory: Keeps state estimates history
+    %
+    % Methods:
+    %   - SwitchedLyapStrategy: Constructor to initialize observer parameters
+    %   - execute: Executes the observer update based on received messages
 
     properties
         Ad double % Discrete-time system matrix
@@ -6,8 +23,8 @@ classdef SwitchedLyapStrategy < IObserverStrategy
         Cd double % Output matrix
         Dd double % Direct feedthrough matrix
         flagLost uint32 % Flag indicating consecutive packet loss
-        ykHist double % Measured output history
         ekYHist double % Observation error histor
+        estimatesHistory double % State estimates history
     end
 
     methods
@@ -18,45 +35,42 @@ classdef SwitchedLyapStrategy < IObserverStrategy
             obj.Bd = ncsPlant.discreteSystem.B; 
             obj.Cd = ncsPlant.discreteSystem.C; 
             obj.Dd = ncsPlant.discreteSystem.D; 
-            obj.ykHist = [];
-            obj.ekYHist = [];
+            obj.ekYHist = 0;
             obj.flagLost = 0;
+            obj.estimatesHistory = zeros(ncsPlant.stateSize,1); % estX0 = 0;
         end
 
-        function [predictedEstimates,obj] = execute(obj, receivedMsg, observerParams, ncsPlant, ~)
-
-            % sentMsg.data(1:obj.ncsPlant.n) = xk1Obsv; % Send xk+1
-            % sentMsg.data(end) = NaN;
-            % sentMsg = NetworkMsg(receivedMsg.samplingTS, currentTime, controlSignal, receivedMsg.seqNr);
-
-            % l0 = [0.661; 9.51];     % -> observerParams
-            % l1 = [0.176; 2.56];     % -> observerParams
-            % l2 = [0.117; 1.51];     % -> observerParams
-            % l3 = [0.0925; 0.939];   % -> observerParams
+        function [predictedEstimates,obj] = execute(obj, rcvMsg, observerParams, ncsPlant, ~)
+            % Executes the observer update based on received messages.
+            % 
+            % Inputs:
+            %   - rcvMsg: Received message containing output and input data
+            %   - observerParams: Struct containing observer gains
+            %   - ncsPlant: The networked control system plant
+            %
+            % Output:
+            %   - predictedEstimates: Updated state estimate
+            observerGains = observerParams.l;
+            % Extract measured output and applied input from received message
+            outputKstep = rcvMsg.data(1:ncsPlant.outputSize);     % yk: output signal measured at t = k*sampleTime
+            inputKstep = rcvMsg.data(ncsPlant.outputSize+1:end);  % uk*: input signal applied at t = k*sampleTime
+            % Get latest state estimate
+            estimatesKstep = obj.estimatesHistory(:,end);
             
-            % observerGains = {l0, l1, l2, l3}; % -> observerParams
-            
-            % yk = obj.Cd * receivedMsg.data(1:size(obj.Cd, 2));
-            % uk = receivedMsg.data(size(obj.Cd, 2) + 1);
-            % estimates = obj.estHist(:, end); % Last observer state
-            
-            % observerGains = obj.computeObserverGain();
-            
-            % if ~isnan(yk)
-            %     obj.flagLost = 0;
-            %     predictedEstimates = obj.Ad * estimates + obj.Bd * uk + observerGains{obj.flagLost + 1} * (yk - obj.Cd * estimates);
-            %     obj.ekYHist = [obj.ekYHist, yk - obj.Cd * estimates ];
-            % else
-            %     if receivedMsg.seqNr~= 1
-            %         obj.flagLost = obj.flagLost + 1;
-            %         predictedEstimates = obj.Ad * estimates + obj.Bd * uk + observerGains{obj.flagLost + 1} * obj.ekYHist(end);
-            %     end
-            %     obj.ekYHist = [obj.ekYHist, obj.ekYHist(end)];
-            % end
-            
-            % obj.estHist = [obj.estHist, predictedEstimates];
-
-            predictedEstimates = [receivedMsg.seqNr+1; receivedMsg.seqNr+2]; % CHECK
+            % If the output is received correctly
+            if ~isnan(outputKstep)
+                obj.flagLost = 0;
+                estimatesK1step = obj.Ad*estimatesKstep + obj.Bd*inputKstep + observerGains{obj.flagLost+1} * (outputKstep-obj.Cd*estimatesKstep);
+                obj.ekYHist = [obj.ekYHist, outputKstep -  obj.Cd * estimatesKstep ];
+            else % output was lost
+                obj.flagLost = obj.flagLost + 1;
+                estimatesK1step = obj.Ad*estimatesKstep + obj.Bd*inputKstep  + observerGains{obj.flagLost+1} * obj.ekYHist(end);
+                obj.ekYHist = [obj.ekYHist, obj.ekYHist(end)];
+            end
+            % Store the updated estimate
+            obj.estimatesHistory = [obj.estimatesHistory, estimatesK1step];
+            % Output the predicted estimates
+            predictedEstimates = estimatesK1step; % !strategy! -> send predicted estimates
         end
     end
 end

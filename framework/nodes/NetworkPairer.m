@@ -1,24 +1,33 @@
 classdef NetworkPairer < NetworkNode & handle
-    % NetworkPairer Pairs messages from two different nodes based on specified rule.
-    % Here, the data is paiered based on the same sequence number (see
-    % awaitSeqNr) -> adaptation possible
+    % NetworkPairer Pairs messages from two different nodes based on a sequence number.
     %
-    % This class receives messages from two nodes, buffers them, and pairs them
-    % The paired message is then sent to the next node in the network.
+    % This class receives messages from two nodes, buffers them, and pairs them 
+    % when they have the same sequence number (awaitSeqNr). The paired message 
+    % is then sent to the next node in the network. The pairing logic can be 
+    % adapted if needed.
     %
     % Properties:
-    %   - sampleTime (double) : Sample time of the system.
-    %   - awaitSeqNr (uint32) : Sequence number currently being processed.
-    %   - taskName (char) : Name of the TrueTime task.
-    %   - msgBufferRcv1 (MsgBuffer) : Buffer for messages from the first node.
-    %   - msgBufferRcv2 (MsgBuffer) : Buffer for messages from the second node.
-    %   - msgBufferSend (MsgBuffer) : Buffer for paired messages.
-    %   - nodeRcv1 : Reference to the first sending node.
-    %   - nodeRcv2 : Reference to the second sending node.
-    %   - nodeNrRcv1 (uint32) : Node number of the first sending node.
-    %   - nodeNrRcv2 (uint32) : Node number of the second sending node.
+    %   sampleTime (double)     - Sample time of the system.
+    %   awaitSeqNr (uint32)     - Sequence number currently being processed.
+    %   taskName (char)         - Name of the TrueTime task.
+    %   msgBufferRcv1 (MsgBuffer) - Buffer for messages from the first node.
+    %   msgBufferRcv2 (MsgBuffer) - Buffer for messages from the second node.
+    %   msgBufferSend (MsgBuffer) - Buffer for paired messages.
+    %   nodeRcv1                - Reference to the first sending node.
+    %   nodeRcv2                - Reference to the second sending node.
+    %   nodeNrRcv1 (uint32)      - Node number of the first sending node.
+    %   nodeNrRcv2 (uint32)      - Node number of the second sending node.
     %
-    % See also: NetworkNode
+    % Methods:
+    %   - NetworkPairer(outputCount, nextNode, nodeNr, sampleTime, nodeRcv1, nodeRcv2)
+    %   - init() : Initializes the TrueTime kernel and buffers.
+    %   - execute(segment) : Processes incoming messages and pairs them.
+    %   - processMsgFromNode1(rcvMsg) : Handles incoming messages from the first node.
+    %   - processMsgFromNode2(rcvMsg) : Handles incoming messages from the second node.
+    %   - sendTopPairedMsg() : Sends the top paired message.
+    %   - generateTaskName(nodeNr) : Generates a unique task name for the node.
+    %
+    % See also: NetworkNode, MsgBuffer, BufferElement
     
     properties
         sampleTime double % Sample time of the system.
@@ -41,9 +50,9 @@ classdef NetworkPairer < NetworkNode & handle
             % and assigns node numbers for message identification.
             
             obj@NetworkNode(outputCount, 0, nextNode, nodeNr);
-            obj.sampleTime = sampleTime;
             obj.generateSendTaskName(nodeNr);
 
+            obj.sampleTime = sampleTime;
             obj.msgBufferRcv1 = MsgBuffer();
             obj.msgBufferRcv2 = MsgBuffer();
             obj.msgBufferSend = MsgBuffer();
@@ -61,7 +70,6 @@ classdef NetworkPairer < NetworkNode & handle
             switch segment
                 case 1
                     rcvMsg = ttGetMsg();
-
                     if rcvMsg.nodeId == obj.nodeNrRcv1
                         executionTime = obj.processMsgFromNode1(rcvMsg);
                     else
@@ -85,18 +93,18 @@ classdef NetworkPairer < NetworkNode & handle
             % Check if a corresponding control msg exists
             index = find(obj.msgBufferRcv2.transmitTimes == obj.awaitSeqNr);
 
-            % if rcvMsg.samplingTS < obj.sampleTime
-            %     % For x0, the corresponding uk signal is 0
-            %     rcvMsg.data = [rcvMsg.data,zeros(1,obj.nodeRcv2.nOut)];
-            %     obj.msgBufferSend.pushTop(BufferElement(awaitSeqNr, rcvMsg));
-            %     obj.msgBufferRcv1.popTop();
-            % elseif 
-            if ~isempty(index)
+            if rcvMsg.samplingTS < obj.sampleTime
+                % For x0, the corresponding uk signal is 0
+                sentMsg = rcvMsg;
+                sentMsg.data = [rcvMsg.data;zeros(1,obj.nodeRcv2.nOut)];
+                sentMsg.lastTransmitTS = ttCurrentTime();
+                sentMsg.nodeId = obj.nodeNr;
+                obj.msgBufferSend.pushTop(BufferElement(obj.awaitSeqNr, sentMsg));
+                obj.msgBufferRcv1.popTop();
+            elseif ~isempty(index)
                 % Matching signal found → Combine & send
                 sentMsg = rcvMsg;
-                sentMsg.data= [rcvMsg.data,obj.msgBufferRcv2.elements{index}.data.data];
-                sentMsg.data = [rcvMsg.seqNr,rcvMsg.seqNr,obj.msgBufferRcv2.elements{index}.data.data];
-                sentMsg.lastTransmitTS = ttCurrentTime();
+                sentMsg.data = [rcvMsg.data;obj.msgBufferRcv2.elements{index}.data.data];
                 sentMsg.nodeId = obj.nodeNr;
                 obj.msgBufferSend.pushTop(BufferElement(obj.awaitSeqNr, sentMsg));
                 obj.msgBufferRcv1.popTop();
@@ -121,10 +129,10 @@ classdef NetworkPairer < NetworkNode & handle
 
             % Matching xk found → Combine & send
             sentMsg = rcvMsg;
-            sentMsg.data = [obj.msgBufferRcv1.elements{index}.data.data, rcvMsg.data];
-            sentMsg.lastTransmitTS = ttCurrentTime();
+            sentMsg.data = [obj.msgBufferRcv1.elements{index}.data.data; rcvMsg.data];
             sentMsg.nodeId = obj.nodeNr;
             sentMsg.seqNr = obj.msgBufferRcv1.elements{index}.data.seqNr;
+            sentMsg.samplingTS = obj.msgBufferRcv1.elements{index}.data.samplingTS;
 
             obj.msgBufferSend.pushTop(BufferElement(obj.awaitSeqNr, sentMsg));
             obj.msgBufferRcv2.popTop();
@@ -142,8 +150,10 @@ classdef NetworkPairer < NetworkNode & handle
             end
 
             topElement = obj.msgBufferSend.getTop();
+            sentMsg = topElement.data;
+            sentMsg.lastTransmitTS = ttCurrentTime;
             if obj.nextNode ~= 0
-                ttSendMsg(obj.nextNode, topElement.data, 80);
+                ttSendMsg(obj.nextNode, sentMsg, 80);
             end
             ttAnalogOutVec(1:obj.nOut, topElement.data.data);
             obj.msgBufferSend.popTop();

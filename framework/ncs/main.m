@@ -46,7 +46,7 @@ networkEffectsData.dataLossSC = vec_sc; % Data loss vector for Sensor-to-Control
 % Define different control strategies for comparison
 
 % Simple Ramp Control (used for debugging, increasing sequence values)
-controlParams.Ramp = struct();
+controlParams.RampC = struct();
 
 % State Feedback Control
 controlParams.StateFeedbackStrategy.k = [10, 20]; 

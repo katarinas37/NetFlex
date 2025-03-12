@@ -8,13 +8,13 @@ classdef NcsPlant < handle
     %   - inputSize (double) : Number of control inputs.
     %   - outputSize (double) : Number of measurable outputs.
     %   - sampleTime (double) : Sample time.
-    %   - delaySteps (double) : Delay steps for each input channel.
+    %   - maxDelaySteps (double) : Delay steps for each input channel.
     %   - controlSaturationLimits (double) : Input saturation limits.
     %   - discreteSystem (ss, Dependent) : Discretized system.
     %   - liftedSystem (ss, Dependent) : Lifted model with controller input.
     %
     % Methods:
-    %   - NcsPlant(system, delaySteps, sampleTime, 'controlSaturationLimits', [limits])
+    %   - NcsPlant(system, maxDelaySteps, sampleTime, 'controlSaturationLimits', [limits])
     %   - computeLiftedModel() : Computes the lifted model.
 
     properties (SetAccess = private)
@@ -22,7 +22,7 @@ classdef NcsPlant < handle
         inputSize double % Input size
         outputSize double % Output size
         sampleTime double % Sampling time
-        delaySteps double % Number of delay steps per input channel
+        maxDelaySteps double % Number of delay steps per input channel
         controlSaturationLimits double % Input saturation limits
         system % Continuous-time state-space model
     end
@@ -33,7 +33,7 @@ classdef NcsPlant < handle
     end
     
     methods
-        function obj = NcsPlant(system, delaySteps, sampleTime, varargin)
+        function obj = NcsPlant(system, maxDelaySteps, sampleTime, varargin)
             % NcsPlant Constructor for a networked control system plant.
             %
             % Example:
@@ -43,21 +43,23 @@ classdef NcsPlant < handle
             % Input parsing and validation
             p = inputParser;
             p.addRequired('system', @(x) isa(x, 'ss')); % Ensure 'system' is a state-space object
-            p.addRequired('delaySteps', @(x) validateattributes(x, {'double'}, {'integer', 'positive', 'finite', 'real'}));
+            p.addRequired('maxDelaySteps', @(x) validateattributes(x, {'double'}, {'integer', 'positive', 'finite', 'real'}));
             p.addRequired('sampleTime', @(x) validateattributes(x, {'double'}, {'positive', 'finite', 'real', 'scalar'}));
             p.addParameter('controlSaturationLimits', nan, @(x) validateattributes(x, {'double'}, {'real'}));
-            p.parse(system, delaySteps, sampleTime, varargin{:});
+            p.parse(system, maxDelaySteps, sampleTime, varargin{:});
             
             % Assign properties
             obj.system = p.Results.system;
             obj.stateSize = size(obj.system.A, 1);
             obj.inputSize = size(obj.system.B, 2);
+            obj.outputSize = size(obj.system.C, 1);
             obj.sampleTime = p.Results.sampleTime;
-            obj.delaySteps = p.Results.delaySteps;
+            obj.maxDelaySteps = p.Results.maxDelaySteps;
+            
 
-            % Validate delaySteps size
-            if numel(delaySteps) ~= 1 && numel(delaySteps) ~= obj.inputSize
-                error('NcsPlant:InvalidDelaySteps', ...
+            % Validate maxDelaySteps size
+            if numel(maxDelaySteps) ~= 1 && numel(maxDelaySteps) ~= obj.inputSize
+                error('NcsPlant:InvalidmaxDelaySteps', ...
                       'Provide delay steps for each input (%d inputs) or a single value.', obj.inputSize);
             end
 
@@ -92,8 +94,8 @@ classdef NcsPlant < handle
 
         function liftedSystem = computeLiftedModel(obj)
             % Computes the lifted NCS model
-            delayStepsEachChannel = repmat(obj.delaySteps, 1, obj.inputSize);
-            cumulativeDelay = [0; cumsum(delayStepsEachChannel)];
+            maxDelayStepsEachChannel = repmat(obj.maxDelaySteps, 1, obj.inputSize);
+            cumulativeDelay = [0; cumsum(maxDelayStepsEachChannel)];
             totalDelay = cumulativeDelay(end);
             
             Ad = obj.discreteSystem.A;
@@ -103,7 +105,7 @@ classdef NcsPlant < handle
             Bfhat = [];
             
             for i = 1:obj.inputSize
-                currentDelay = delayStepsEachChannel(i);
+                currentDelay = maxDelayStepsEachChannel(i);
                 stateLine = [zeros(obj.stateSize, currentDelay-1), Bd(:, i)];
                 toAdd = [stateLine; zeros(cumulativeDelay(i)+1, currentDelay); [eye(currentDelay-1), zeros(currentDelay-1,1)]; zeros(totalDelay - cumulativeDelay(i+1), currentDelay)];
                 Ahat = [Ahat, toAdd];
