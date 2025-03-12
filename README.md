@@ -111,11 +111,11 @@ Ensure you have:
 - Simulink & TrueTime Toolbox installed
 
 ### 3️⃣ **Run an Example**
+This will launch a **simple predefined simulation** of an NCS with only sensor and controller generating a ramp.
 Open MATLAB and change to folder NetFlex. Run:
 ```bash
 run('framework/ncs/main.m')
 ```
-This will launch a **simple predefined simulation** of an NCS with only sensor and controller generating a ramp.
 ---
 
 ## 📜 Contributing
