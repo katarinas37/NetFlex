@@ -1,21 +1,21 @@
 ![NetFlex Logo](logo.png)
 
-# NetFlex - Networked Control Systems Simulation Framework
+# **NetFlex - Networked Control Systems Simulation Framework**
 
-## 📌 Overview
-NetFlex is a **MATLAB-based simulation framework** for **Networked Control Systems (NCS)**. It provides an **object-oriented architecture** to model network-induced effects, e.g., delays, dropouts, while implementing control and observer algorithms in a modular fashion.
+## 📌 **Overview**
+NetFlex is a **MATLAB/Simulink-based** simulation framework for **Networked Control Systems (NCS)**, enabling realistic modeling of **network effects** such as **delays, data loss, and packet reordering**. It provides a **modular and scalable** structure, allowing users to define **custom control and observer strategies**, configure network conditions, and simulate various scenarios.
 
-This toolbox is built on top of **MATLAB Simulink TrueTime** to enable seamless simulation of communication-constrained control systems.
+Built on top of **MATLAB Simulink TrueTime**, NetFlex facilitates the simulation of **communication-constrained control systems** in an intuitive and extendable way.
 
 ---
 
-## 🚀 Features
-✔ **Object-Oriented Simulation Framework** – Modular and scalable architecture based on MATLAB.  
-✔ **Flexible Network Nodes** – Includes delay, dropout, and buffering mechanisms.  
-✔ **State Feedback & Observer Implementations** – Supports advanced control strategies.  
+## 🚀 **Key Features**
+✔ **Object-Oriented Design** – Modular architecture for flexible NCS modeling.  
+✔ **Advanced Network Effects** – Supports delays, dropouts, buffering, and reordering.  
+✔ **Customizable Control & Observer Strategies** – Implement and test new algorithms easily.  
+✔ **Seamless Simulink Integration** – Uses TrueTime blocks for networked control simulations.  
+✔ **Predefined Examples** – Includes ready-to-use NCS setups for quick testing.  
 ✔ **Easily Extendable** – Define new nodes, control laws, and observer mechanisms.  
-✔ **Integration with Simulink** – Uses TrueTime blocks for real-time network simulations.  
-✔ **Predefined Examples** – Ready-to-use NCS simulation setups.  
 
 ---
 
@@ -26,39 +26,23 @@ NetFlex-Framework/
 │── docs/                  # Documentation (user guides, UML diagrams)
 │── examples/              # Example simulation scripts
 │── framework/             # Main Framework source code
-│   │── messages/          # Contains base classes, including abstract classes and utility functions
-│   │── models/            # Directory for data models and related classes
+│   │── interfaces/        # Contains interface for control and observer strategies 
+│   │── messages/          # Contains base classes for data exchange in NCS
+│   │── ncs/               # Contains template for defining an example
 │   │── nodes/             # Network node implementations
+│   │── strategies/        # Different control and observer strategies (easily expandable)
 │   └── utils/             # Helper functions (TrueTime handling, data handling, etc.)
-│── tests/                 # Unit tests for framework components
-│── data/                  # Example datasets, simulation results
-│── .gitignore             # Ignore unnecessary files
+│── libs/                  # TrueTime
+│   └──  truetime-2.0/      # Contains TrueTime compatible with MATLAB R2022a and later
 │── LICENSE                # License details
 └── README.md              # Project overview
 ```
 
 ---
-
-## 🔧 Installation & Setup
-
-### 1️⃣ **Clone the Repository**
-```bash
-git clone https://github.com/YOUR-USERNAME/NetFlex-Framework.git
-cd NetFlex-Framework
-```
-
-### 2️⃣ **MATLAB Setup**
-Ensure you have:
-- MATLAB R2022a+
-- Simulink & TrueTime Toolbox installed
-
-### 3️⃣ **Run an Example**
-Open MATLAB and run:
-```matlab
-cd examples
-run main.m
-```
-This will launch a **predefined simulation** of an NCS with delays and dropouts.
+## 🏗️ Object-Oriented Design (UML Overview)
+The framework follows a **class-based architecture**, where each network component is implemented as a **MATLAB class**:
+  
+Detailed UML diagrams are available in `docs/`.
 
 ---
 
@@ -66,7 +50,9 @@ This will launch a **predefined simulation** of an NCS with delays and dropouts.
 
 ### Overview
 
-This repository contains a patched version of TrueTime, modified to be compatible with newer MATLAB versions (R2022a and later). The original TrueTime code used the deprecated `mexSetTrapFlag` function, which was removed in MATLAB R2022a. This patch replaces `mexSetTrapFlag` with `mexCallMATLABWithTrap` to ensure compatibility.
+This repository contains a patched version of TrueTime, modified to be compatible with newer MATLAB versions (R2022a and later). 
+
+The original TrueTime code used the deprecated `mexSetTrapFlag` function, which was removed in MATLAB R2022a. This patch replaces `mexSetTrapFlag` with `mexCallMATLABWithTrap` to ensure compatibility. 
 
 ### Changes Made
 
@@ -78,6 +64,7 @@ This repository contains a patched version of TrueTime, modified to be compatibl
 - ✅ MATLAB **R2022a and later** (Tested on R2024b)
 - ⚠️ MATLAB **R2020b - R2022a**: Allowed but shows warnings.
 
+If older of MATLAB is used, please download the original version of TrueTime at https://github.com/sfischme/truetime.
 ### Compilation Instructions
 
 To compile TrueTime on other platforms, follow these steps:
@@ -110,11 +97,25 @@ To compile TrueTime on other platforms, follow these steps:
 
 ---
 
-## 🏗️ Object-Oriented Design (UML Overview)
-The framework follows a **class-based architecture**, where each network component is implemented as a **MATLAB class**:
-  
-Detailed UML diagrams are available in `docs/`.
+## 🔧 Installation & Setup
 
+### 1️⃣ **Clone the Repository**
+```bash
+git clone https://github.com/YOUR-USERNAME/NetFlex-Framework.git
+cd NetFlex-Framework
+```
+
+### 2️⃣ **MATLAB Setup**
+Ensure you have:
+- MATLAB 
+- Simulink & TrueTime Toolbox installed
+
+### 3️⃣ **Run an Example**
+Open MATLAB and change to folder NetFlex. Run:
+```bash
+run('framework/ncs/main.m')
+```
+This will launch a **simple predefined simulation** of an NCS with only sensor and controller generating a ramp.
 ---
 
 ## 📜 Contributing
