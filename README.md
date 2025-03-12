@@ -41,9 +41,7 @@ NetFlex-Framework/
 ---
 ## 🏗️ Object-Oriented Design (UML Overview)
 The framework follows a **class-based architecture**, where each network component is implemented as a **MATLAB class**:
-  
-Detailed UML diagrams are available in `docs/`.
-
+![UML Diagramm](docs/assets/uml.png)
 ---
 
 ## TrueTime Patch for MATLAB Compatibility
