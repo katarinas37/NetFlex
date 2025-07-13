@@ -131,8 +131,6 @@ If you use **NetFlex** in your research or publication, please cite the followin
   address   = {Split, Croatia}
 }
 
----
-
 ## 📜 Contributing
 We welcome contributions!  
 - To add a feature, **fork the repository**, make changes, and submit a **pull request**.  
