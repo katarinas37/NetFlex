@@ -122,14 +122,7 @@ run('framework/ncs/main.m')
 
 If you use **NetFlex** in your research or publication, please cite the following paper:
 
-```bibtex
-@inproceedings{stanojevic2025netflex,
-  author    = {K. Stanojevic and M. Steinberger and M. Siljak and M. Horn},
-  title     = {{\textit{NetFlex: Simulation Framework for Networked Control Systems}}},
-  booktitle = {2025 11th International Conference on Control, Decision and Information Technologies (CoDIT)},
-  year      = {2025},
-  address   = {Split, Croatia}
-}
+K. Stanojevic, M. Steinberger, M. Siljak and M. Horn, 'NetFlex: Simulation Framework for Networked Control Systems,' 2025 11th International Conference on Control, Decision and Information Technologies (CoDIT), Split Croatia, 2025
 
 ## 📜 Contributing
 We welcome contributions!  
