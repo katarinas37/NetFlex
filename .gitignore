@@ -2,7 +2,7 @@
 *.asv
 *.m~
 *.mlx~
-*.mat
+#*.mat
 *.mexw64
 *.mexw32
 *.mexmaci64
