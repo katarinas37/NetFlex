@@ -21,8 +21,13 @@ classdef MsgRejection < NetworkNode
     properties
         taskName      % Name of the TrueTime task for processing messages
         sentMsg    % Most recent valid message received
-        inbox         % Stores all received messages (for debugging/logging)
-        inboxTime    % TSs corresponding to received messages
+
+        rcvHistoryTime
+        rcvHistory
+        rcvHistoryData
+        sendHistoryTime
+        sendHistory
+        sendHistoryData
     end
 
     methods
@@ -36,8 +41,13 @@ classdef MsgRejection < NetworkNode
 
             obj.generateTaskName(nodeNr);            
             obj.sentMsg = [];
-            obj.inbox = [];
-            obj.inboxTime = [];
+
+            obj.rcvHistoryTime = [];
+            obj.rcvHistory = [];
+            obj.rcvHistoryData = [];
+            obj.sendHistoryTime = [];
+            obj.sendHistory = [];
+            obj.sendHistoryData = [];
         end
 
         function init(obj)
@@ -66,16 +76,22 @@ classdef MsgRejection < NetworkNode
 
             % Retrieve the received message
             rcvMsg = ttGetMsg;  
-            TS = ttCurrentTime;
+            currentTime = ttCurrentTime;
       
             % Log received messages (for debugging)
-            obj.inboxTime = [obj.inboxTime; TS];
-            obj.inbox = [obj.inbox;rcvMsg.data];
+            obj.rcvHistoryTime = [obj.rcvHistoryTime,currentTime];
+            obj.rcvHistory = [obj.rcvHistory, rcvMsg];
+            obj.rcvHistoryData = [obj.rcvHistoryData, rcvMsg.data];
 
             % Update sentMsg only if the received message is more recent
             if(isempty(obj.sentMsg) || rcvMsg.samplingTS > obj.sentMsg.samplingTS)
                 obj.sentMsg = rcvMsg;
                 obj.sentMsg.nodeId = obj.nodeNr;
+               
+                transmitTime = currentTime;
+                obj.sendHistoryTime = [obj.sendHistoryTime, transmitTime];
+                obj.sendHistory = [obj.sendHistory, obj.sentMsg];
+                obj.sendHistoryData = [obj.sendHistoryData, obj.sentMsg.data];
             end
 
             % Forward the latest valid message to all connected nodes

@@ -136,7 +136,7 @@ classdef NcsStructureEx2 < handle
 
             % Controller Node
             obj.addNode("ControllerNode", ...
-            ControllerNode(delayCANodeNr, controllerNodeNr, obj.ncsPlant, obj.controlParams.StateFeedbackStrategy, 'StateFeedbackStrategy') ...
+            ControllerNode(obj.ncsPlant.inputSize, delayCANodeNr, controllerNodeNr, obj.ncsPlant, obj.controlParams.StateFeedbackStrategy, 'StateFeedbackStrategy') ...
             );
 
             % Delay Node: controller to actuator
@@ -194,15 +194,15 @@ classdef NcsStructureEx2 < handle
             results.uk = timeseries(controllerNode.controlSignalHistory, timeVector); % computed control signal plotted at t = kTd
             results.uk.DataInfo.Interpolation = 'zoh';
 
-            results.uksend = timeseries(controllerNode.controlSignalHistory, controllerNode.sendTimeHistory);
+            % results.uksend = timeseries(controllerNode.controlSignalHistory, controllerNode.sendTimeHistory);
 
             % Observer: state estimates
-            observerNode = obj.nodeMap("ObserverNode"); % Retrieve by key
-            numSamples = length(controllerNode.controlSignalHistory); 
-            timeVector = (0:(numSamples - 1)) * obj.ncsPlant.sampleTime();
-
-            results.estimates = timeseries(observerNode.estimatesHistory, timeVector);
-            results.estimates.DataInfo.Interpolation = 'zoh';
+            % observerNode = obj.nodeMap("ObserverNode"); % Retrieve by key
+            % numSamples = length(controllerNode.controlSignalHistory); 
+            % timeVector = (0:(numSamples - 1)) * obj.ncsPlant.sampleTime();
+            % 
+            % results.estimates = timeseries(observerNode.estimatesHistory, timeVector);
+            % results.estimates.DataInfo.Interpolation = 'zoh';
         end
 
 

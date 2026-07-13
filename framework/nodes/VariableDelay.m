@@ -10,7 +10,7 @@ classdef VariableDelay < NetworkNode & handle
     %
     % Methods:
     %   - VariableDelay(outputCount, nextNode, nodeNumber)
-    %   - calculateTransmitTime(receivedMsg) : Abstract method to compute message transmit time.
+    %   - calculateTransmitTime(rcvMsg) : Abstract method to compute message transmit time.
     %   - delayCode(segment) : Processes incoming messages and schedules their transmission.
     %   - sendCode(segment) : Sends messages at the scheduled transmit time.
     %   - init() : Initializes the TrueTime kernel and delay tasks.
@@ -19,10 +19,17 @@ classdef VariableDelay < NetworkNode & handle
         msgBuffer MsgBuffer % Buffer to store messages scheduled for future transmission
         sendTaskName char % Task name of the send task
         delayTaskName char % Task name of the delay task
+
+        rcvHistoryTime
+        rcvHistory
+        rcvHistoryData
+        sendHistoryTime
+        sendHistory
+        sendHistoryData
     end
     
     methods (Abstract)
-        [transmitTime, sentMsg] = calculateTransmitTime(obj, receivedMsg) % Computes transmit time for each message
+        [transmitTime, sentMsg] = calculateTransmitTime(obj, rcvMsg) % Computes transmit time for each message
     end
     
     methods
@@ -37,6 +44,13 @@ classdef VariableDelay < NetworkNode & handle
             obj.generateSendTaskName(nodeNr);
             obj.generateDelayTaskName(nodeNr);
             obj.msgBuffer = MsgBuffer();
+            
+            obj.rcvHistoryTime = [];
+            obj.rcvHistory = [];
+            obj.rcvHistoryData = [];
+            obj.sendHistoryTime = [];
+            obj.sendHistory = [];
+            obj.sendHistoryData = [];
         end
         
         function [executionTime, obj] = delayCode(obj, seg)
@@ -45,15 +59,24 @@ classdef VariableDelay < NetworkNode & handle
             switch seg
                 case 1
                     % Receive new message
-                    receivedMsg = ttGetMsg();
-                    if ~isa(receivedMsg, 'NetworkMsg')
+                    rcvMsg = ttGetMsg();
+                    if ~isa(rcvMsg, 'NetworkMsg')
                         error('VariableDelay:InvalidMessageType', 'Variable Delay can only process NetworkMsg objects.');
                     end
-                    
+                    currentTime = ttCurrentTime();
+
+                    obj.rcvHistoryTime = [obj.rcvHistoryTime,currentTime];
+                    obj.rcvHistory = [obj.rcvHistory, rcvMsg];
+                    obj.rcvHistoryData = [obj.rcvHistoryData, rcvMsg.data];
+
                     % Compute transmission time
-                    [transmitTime, sentMsg] = obj.calculateTransmitTime(receivedMsg);
+                    [transmitTime, sentMsg] = obj.calculateTransmitTime(rcvMsg);
                     sentMsg.lastTransmitTS = [sentMsg.lastTransmitTS(end), transmitTime];
-                    sentMsg.nodeId = obj.nodeNr;
+
+                    obj.sendHistoryTime = [obj.sendHistoryTime, transmitTime];
+                    obj.sendHistory = [obj.sendHistory, sentMsg];
+                    obj.sendHistoryData = [obj.sendHistoryData, sentMsg.data];
+
                     if obj.msgBuffer.elementCount == 0 || transmitTime < obj.msgBuffer.getTop().transmitTime
                         % Cancel existing job, insert new packet at the beginning, and reschedule job
                         try
@@ -65,7 +88,6 @@ classdef VariableDelay < NetworkNode & handle
                         % Insert new message at the top of the buffer
                         element = BufferElement(transmitTime, sentMsg);
                         obj.msgBuffer.pushTop(element);
-                        
                         % Schedule a new send job for the next packet
                         ttCreateJob(obj.sendTaskName);
                     else

@@ -1,11 +1,27 @@
 %% NetFlex: A Simulation Framework for Networked Control Systems
-% Example 3: Example submitted to CoDit2025
-% (The system under study is deliberately kept simple)
-clear; clc;
-
-% Initialize TrueTime (Uncomment if required)
+% Example 3: CoDIT 2025 Example
+%
+% This example reproduces the networked control system presented in:
+%
+% K. Stanojevic, M. Steinberger, M. Siljak, J. Ludwiger, and M. Horn,
+% "NetFlex: A Simulation Framework for Networked Control Systems,"
+% Proc. 11th International Conference on Control, Decision and Information
+% Technologies (CoDIT), Split, Croatia, 2025, pp. 1-6.
+%
+% The considered system is intentionally kept simple to demonstrate how
+% NetFlex can be used to rapidly construct, simulate, and analyze
+% communication-aware control systems.
+%
+% The example illustrates:
+%   - Construction of a networked control architecture
+%   - Configuration of communication effects
+%   - Simulation using the NetFlex framework
+%   - Evaluation of the resulting closed-loop behavior
+%
+% Initialize TrueTime (uncomment if required)
 % run('libs/truetime-2.0/init_truetime.m')
 
+clear; clc;
 %% Simulation Parameters
 % Define the continuous-time system dynamics.
 Ac = [0,1;0,0];
@@ -13,7 +29,7 @@ bc = [0;1];
 cc = [1,0];
 % Sampling time and simulation duration
 sampleTime = 5e-3; % Discretization step (Td)
-simTime = 40; % Total simulation time
+simTime = 10; % Total simulation time 
 
 % Number of delay steps and initial system state
 delaySteps = 15;

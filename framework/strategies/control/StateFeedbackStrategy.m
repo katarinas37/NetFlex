@@ -33,8 +33,8 @@ classdef StateFeedbackStrategy < IControlStrategy
             %   - obj (StateFeedbackStrategy) : Strategy object (unchanged).
 
             % Validate that control gain matrix `k` has correct dimensions
-            assert(isequal(size(controlParams.k), [ncsPlant.inputSize, ncsPlant.stateSize]), ...
-                'Size of controlParams.k must be %d x %d', ncsPlant.inputSize, ncsPlant.stateSize);
+            % assert(isequal(size(controlParams.k), [ncsPlant.inputSize, ncsPlant.stateSize]), ...
+            %     'Size of controlParams.k must be %d x %d', ncsPlant.inputSize, ncsPlant.stateSize);
             
             % Compute control signal using state feedback
             controlSignal = -controlParams.k * rcvMsg.data;

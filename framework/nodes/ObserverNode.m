@@ -28,6 +28,13 @@ classdef ObserverNode < NetworkNode & handle
         estimatesHistory double % Observer state history
         observerStrategy % Observer strategy used in the node
         observerParams % Observer parameters for the strategy
+
+        rcvHistoryTime
+        rcvHistory
+        rcvHistoryData
+        sendHistoryTime
+        sendHistory
+        sendHistoryData
     end
     
     methods
@@ -52,6 +59,13 @@ classdef ObserverNode < NetworkNode & handle
             obj.observerParams = observerParams;
             obj.estimatesHistory = zeros(obj.ncsPlant.stateSize, 1); % Initial state estimate
             obj.sendTimeHistory = [];
+            
+            obj.rcvHistoryTime = [];
+            obj.rcvHistory = [];
+            obj.rcvHistoryData = [];
+            obj.sendHistoryTime = [];
+            obj.sendHistory = [];
+            obj.sendHistoryData = [];
 
             % Validate observerParams and instantiate the strategy
             if isstruct(observerParams)
@@ -79,6 +93,10 @@ classdef ObserverNode < NetworkNode & handle
             rcvMsg = ttGetMsg(); % Retrieve incoming network message
             currentTime = ttCurrentTime();
 
+            obj.rcvHistoryTime = [obj.rcvHistoryTime,currentTime];
+            obj.rcvHistory = [obj.rcvHistory, rcvMsg];
+            obj.rcvHistoryData = [obj.rcvHistoryData, rcvMsg.data];  
+
             % Execute selected observer strategy dynamically
             [estimates,obj.observerStrategy] = obj.observerStrategy.execute(rcvMsg, obj.observerParams, obj.ncsPlant);
 
@@ -89,6 +107,7 @@ classdef ObserverNode < NetworkNode & handle
             % Transmit results to the next node
             sentMsg = rcvMsg;
             sentMsg.data = estimates;
+
             sentMsg.nodeId = obj.nodeNr;
             for nextNode = obj.nextNode(:)'
                 if nextNode
@@ -96,6 +115,12 @@ classdef ObserverNode < NetworkNode & handle
                 end
             end
             executionTime = -1;
+
+            transmitTime = currentTime;
+            obj.sendHistoryTime = [obj.sendHistoryTime, transmitTime];
+            obj.sendHistory = [obj.sendHistory, sentMsg];
+            obj.sendHistoryData = [obj.sendHistoryData, sentMsg.data];
+
             ttAnalogOutVec(1:numel(sentMsg.data),sentMsg.data);
         end
         

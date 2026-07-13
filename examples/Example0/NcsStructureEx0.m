@@ -1,4 +1,4 @@
-classdef NcsStructureEx4 < handle
+classdef NcsStructureEx0 < handle
     % NcsStructure Builder class for spatially distributed networked control systems.
     %
     % This class defines the structure of a Networked Control System (NCS), 
@@ -40,7 +40,7 @@ classdef NcsStructureEx4 < handle
     end
     
     methods
-        function obj = NcsStructureEx4(ncsPlant, varargin)
+        function obj = NcsStructureEx0(ncsPlant, varargin)
         % Constructor for NcsStructure
         %
         % Inputs:
@@ -87,83 +87,36 @@ classdef NcsStructureEx4 < handle
             cnt = 0;
 
             sensorNodeNr = cnt+1;
-            delaySCNodeNr = cnt+2;
-            datalossSCNodeNr = cnt+3;
-            pairerNodeNr = cnt+4;
-            ordererNodeNr = cnt+5;
-            observerNodeNr = cnt+6;   
-            controllerNodeNr = cnt+7; 
-            delayCANodeNr = cnt+8;
-            datalossCANodeNr = cnt+9;
-            msgRejectionNodeNr = cnt+10;
-            bufferNodeNr = cnt+11;
-            delayWithDataLossACNodeNr = cnt+12;
+            delaySCNodeNr = (cnt+2);
+            controllerNodeNr = (cnt+3);
+            datalossCANodeNr = (cnt+4);
+            msgRejectionNodeNr = cnt+5;
+
  
-
-            % Network Buffer
-            obj.addNode("NetworkBuffer", ...
-                NetworkBufferAct(obj.ncsPlant.inputSize,delayWithDataLossACNodeNr,bufferNodeNr,obj.ncsPlant.sampleTime) ...
-                );
-
-
-            % Delay Node: actuator to controller
-            obj.addNode("NetworkDelayWithDropoutsAC",...
-                NetworkDelayWithDropouts(obj.ncsPlant.inputSize,pairerNodeNr,delayWithDataLossACNodeNr,obj.ncsPlant.sampleTime, obj.networkEffectsData.delaysAC,...
-                 obj.networkEffectsData.dataLossAC, obj.networkEffectsData.dataLossMaxAC) ...
-                );
-
             % Sensor Node
             obj.addNode("SensorNode", ...
-                SensorNode(obj.ncsPlant.stateSize, delaySCNodeNr, sensorNodeNr,obj.ncsPlant, obj.simTime) ...
+            SensorNode(obj.ncsPlant.stateSize, delaySCNodeNr, sensorNodeNr,obj.ncsPlant, obj.simTime) ...
                 );
-
             % Delay Node: sensor to controller
             obj.addNode("NetworkDelaySC",...
-                NetworkDelay(obj.ncsPlant.outputSize,datalossSCNodeNr,delaySCNodeNr,obj.networkEffectsData.delaysSC) ...
-                );
-            
-            % Data Loss: sensor to controller
-            obj.addNode("NetworkDropoutSC", ...
-                NetworkDropoutDetection(obj.ncsPlant.outputSize, pairerNodeNr, datalossSCNodeNr, obj.networkEffectsData.delaysMaxSC, obj.networkEffectsData.dataLossSC) ...
-                );
-
-
-            % Network Pairer
-            obj.addNode("NetworkPairer",...
-                NetworkPairer(obj.ncsPlant.outputSize+obj.ncsPlant.inputSize, ordererNodeNr, pairerNodeNr, obj.ncsPlant.sampleTime,obj.nodeMap("SensorNode"), obj.nodeMap("NetworkBuffer")) ...
-                );
-
-            % Network Orderer
-            obj.addNode("NetworkOrderer", ...
-                NetworkOrderer(obj.ncsPlant.outputSize+obj.ncsPlant.inputSize, observerNodeNr, ordererNodeNr, obj.ncsPlant.sampleTime) ...
-                );
-
-            % Observer Node
-            obj.addNode("ObserverNode", ...
-                ObserverNode(controllerNodeNr, observerNodeNr, obj.ncsPlant, obj.observerParams.SwitchedLyapStrategy, 'SwitchedLyapStrategy') ...
-                );
-
+                NetworkDelay(obj.ncsPlant.stateSize,controllerNodeNr,delaySCNodeNr,obj.networkEffectsData.delaysSC))
+            % 
             % Controller Node
             obj.addNode("ControllerNode", ...
             ControllerNode(obj.ncsPlant.inputSize, datalossCANodeNr, controllerNodeNr, obj.ncsPlant, obj.controlParams.StateFeedbackStrategy, 'StateFeedbackStrategy') ...
-            );
-        
-            % Data Loss: controller to actuator
-            obj.addNode("NetworkDropoutCA", ...
-                NetworkDropoutSimple(obj.ncsPlant.inputSize, delayCANodeNr, datalossCANodeNr, obj.networkEffectsData.dataLossCA) ...
-                );    
-
-
-            % Delay Node: controller to actuator
-            obj.addNode("NetworkDelayCA",...
-                NetworkDelay(obj.ncsPlant.inputSize,msgRejectionNodeNr,delayCANodeNr,obj.networkEffectsData.delaysCA) ...
                 );
+            % 
+            % Data Loss: controller to actuator
+            obj.addNode("NetworkDropoutCA", NetworkDropoutSimple(obj.ncsPlant.inputSize,msgRejectionNodeNr,datalossCANodeNr,obj.networkEffectsData.dataLossCA) ...
+                );            
 
             % Message Rejection Mechanism
             obj.addNode("MsgRejection",...
-                MsgRejection(obj.ncsPlant.inputSize,bufferNodeNr,msgRejectionNodeNr) ...
+                MsgRejection(obj.ncsPlant.inputSize,0,msgRejectionNodeNr) ...
                 );
-            
+
+
+
             % Additional nodes can be added here if required
       end
 
@@ -201,23 +154,14 @@ classdef NcsStructureEx4 < handle
             % Outputs:
             %   - results (struct) : Contains simulation output data.
             
-            % Control signal 
+
             controllerNode = obj.nodeMap("ControllerNode"); % Retrieve by key
             numSamples = length(controllerNode.controlSignalHistory); 
             timeVector = (0:(numSamples - 1)) * obj.ncsPlant.sampleTime();
             
-            results.uk = timeseries(controllerNode.controlSignalHistory, timeVector); % computed control signal plotted at t = kTd
+            % Controller output signal
+            results.uk = timeseries(controllerNode.controlSignalHistory, timeVector);
             results.uk.DataInfo.Interpolation = 'zoh';
-
-            results.uksend = timeseries(controllerNode.controlSignalHistory, controllerNode.sendTimeHistory);
-
-            % Observer: state estimates
-            observerNode = obj.nodeMap("ObserverNode"); % Retrieve by key
-            numSamples = length(observerNode.estimatesHistory); 
-            timeVector = (0:(numSamples - 1)) * obj.ncsPlant.sampleTime();
-
-            results.estimates = timeseries(observerNode.estimatesHistory, timeVector);
-            results.estimates.DataInfo.Interpolation = 'zoh';
         end
 
 

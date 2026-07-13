@@ -2,10 +2,10 @@
 % Example 4: Mass Spring System under delays and data loss
 % with unmeasurable states
 % This example is based on the methodology described in
-% K. Stanojevic, M. Steinberger, and M. Horn, “Robust state estimation
-% in networked control systems under data loss and delays: A switched
-% lyapunov funtion based approach,” in 2025 European Control Confer-
-% ence (ECC), 2025, p. accepted.
+% [1] K. Stanojevic, M. Steinberger, and M. Horn, “Robust state estimation
+%     in networked control systems under data loss and delays: A switched
+%     lyapunov funtion based approach,” in 2025 European Control Confer-
+%     ence (ECC), 2025, p. 1582-1588.
 clear; clc;
 
 % Initialize TrueTime (Uncomment if required)
@@ -22,7 +22,7 @@ Ac = [0,1,0;-c/m,-k/m,c/m;0,0,0];
 bc = [0;0;b];
 cc = [1,0,0];
 % Sampling time and simulation duration
-sampleTime = 5e-3; % Discretization step (Td)
+sampleTime = 20e-3; % Discretization step (Td)
 simTime = 6; % Total simulation time
 
 % Number of delay steps and initial system state
@@ -55,12 +55,11 @@ networkEffectsData.dataLossSC = generateDataLossWithMAB(3,simTime, sampleTime); 
 controlParams.RampC = struct();
 
 % State Feedback Control
-controlParams.StateFeedbackStrategy.k = [-9.88 -0.41 16.15]; 
+controlParams.StateFeedbackStrategy.k = [ -17.2958     0.350468      27.4401 ]; 
 %% Define Observer Parameters
 % Define parameters for observer strategies
 l0 = [0.65 2.14 0.38]'; l1 = [0.18 0.54 0.1]'; l2 = [0.12 0.32 0.07]'; l3 = [0.095 0.19 0.05]';
 observerParams.SwitchedLyapStrategy.l = {l0,l1,l2,l3}; 
-observerParams.LuenbergerObserverStrategy.l = [0.83;0.11];
 observerParams.RampO = struct();
 %% Initialize NCS Plant
 % Create the NCS plant model using defined system dynamics
@@ -74,6 +73,71 @@ NCS = NcsStructureEx4(ncsPlant, 'simTime', simTime, ...
 %% Run Simulation
 % Execute the Simulink simulation
 sim('NCSEx4_sim');
+%% Plots
+OBS = NCS.allNodes{11};   % observer node
+xhat = [zeros(stateSize,1),OBS.sendHistoryData]; % state estimates
+SENS = NCS.allNodes{12};  % sensor node
+y = SENS.sendHistoryData; % output measurement
+CONT = NCS.allNodes{1};   % controller node
+uk = CONT.sendHistoryData; % data packets containing different uk^*
+BUFF = NCS.allNodes{3};
+uStar = BUFF.sendHistoryData; % data selector selects for the application
+uStarTime = BUFF.sendHistoryTime;
+numSamples = 300; % plot duration = numSamples*sampleTime
+%--------------------------------------------------------------------------
+figure(1)
+clf, 
+subplot(3,1,1)
+title('Estimation Error','Interpreter','Latex','FontSize',20)
+grid on, hold on, box on
+stairs(0:sampleTime:(numSamples-1)*sampleTime,x.data(1:numSamples,1)'-xhat(1,1:numSamples),'Linewidth',1.5)
+ylabel('$e_{1,k} = x_{1,k}-\hat{x}_{1,k}$','Interpreter','latex','FontSize',16)
+subplot(3,1,2)
+grid on, hold on, box on
+stairs(0:sampleTime:(numSamples-1)*sampleTime,x.data(1:numSamples,2)'-xhat(2,1:numSamples),'Linewidth',1.5)
+ylabel('$e_{2,k} = x_{2,k}-\hat{x}_{2,k}$','Interpreter','latex','FontSize',16)
+subplot(3,1,3)
+grid on, hold on, box on
+stairs(0:sampleTime:(numSamples-1)*sampleTime,x.data(1:numSamples,3)'-xhat(3,1:numSamples),'Linewidth',1.5)
+ylabel('$e_{3,k} = x_{3,k}-\hat{x}_{3,k}$','Interpreter','latex','FontSize',16)
+xlabel('Time $t$','Interpreter','latex','FontSize',16)
+xlim([0,numSamples*sampleTime])
+%--------------------------------------------------------------------------
+figure(2)
+clf, 
+subplot(3,1,1)
+title('Evolution of the System States','Interpreter','Latex','FontSize',20)
+grid on, hold on
+stairs(0:sampleTime:(numSamples-1)*sampleTime,x.data(1:numSamples,1)','Linewidth',1.5)
+ylabel('$x_{1,k}$','Interpreter','latex','FontSize',16)
+subplot(3,1,2)
+grid on, hold on
+stairs(0:sampleTime:(numSamples-1)*sampleTime,x.data(1:numSamples,2)','Linewidth',1.5)
+ylabel('$x_{2,k}$','Interpreter','latex','FontSize',16)
+subplot(3,1,3)
+grid on, hold on
+stairs(0:sampleTime:(numSamples-1)*sampleTime,x.data(1:numSamples,3)','Linewidth',1.5)
+ylabel('$x_{3,k}$','Interpreter','latex','FontSize',16)
+xlabel('Time $t$','Interpreter','latex','FontSize',16)
+xlim([0,numSamples*sampleTime])
+%--------------------------------------------------------------------------
+%%
+figure(3)
+clf
+subplot(2,1,1)
+title('Control Signal','Interpreter','Latex','FontSize',20)
+grid on, hold on
+stairs(uStarTime, uStar,'Linewidth',1.5)
+stairs(0:sampleTime:(numSamples-2)*sampleTime, uk,'Linewidth',1.5)
+ylabel('$\hat{u}_k, \hat{u}^*(t)$','Interpreter','latex','FontSize',16)
+subplot(2,1,2)
+title('Control Signal','Interpreter','Latex','FontSize',20)
+grid on, hold on
+stairs(uStarTime, uStar,'Linewidth',1.5)
+stairs(0:sampleTime:(numSamples-2)*sampleTime, uk,'Linewidth',1.5)
+ylabel('$\hat{u}_k, \hat{u}^*(t)$','Interpreter','latex','FontSize',16)
+xlim([0,1])
+
 %%
 function vec = generateDataLossWithMAB(MAB, simTime, sampleTime)
     % generateDataLossWithMAB Generates a binary sequence for packet dropouts.

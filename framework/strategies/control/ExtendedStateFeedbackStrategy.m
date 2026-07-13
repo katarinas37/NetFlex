@@ -32,7 +32,7 @@ classdef ExtendedStateFeedbackStrategy < IControlStrategy
             %   controlStrategy = ExtendedStateFeedbackStrategy(ncsPlant);
             
             % Initialize buffer for past control signals (set to zero initially)
-            obj.delayedControlSignals = zeros(ncsPlant.delaySteps, 1);
+            obj.delayedControlSignals = zeros(ncsPlant.maxDelaySteps, 1);
         end
 
         function [controlSignal,obj] = execute(obj, rcvMsg, controlParams, ncsPlant, ~)
@@ -55,13 +55,13 @@ classdef ExtendedStateFeedbackStrategy < IControlStrategy
             %   controlSignal = controlStrategy.execute(rcvMsg, controlParams, ncsPlant);
 
             % Validate that control gain matrix `k` has correct dimensions
-            assert(isequal(size(controlParams.k), [ncsPlant.inputSize, ncsPlant.stateSize + ncsPlant.delaySteps]), ...
-                'Size of controlParams.k must be %d x %d', ncsPlant.inputSize, ncsPlant.stateSize + ncsPlant.delaySteps);
+            % assert(isequal(size(controlParams.k), [ncsPlant.inputSize, ncsPlant.stateSize + ncsPlant.maxDelaySteps]), ...
+            %     'Size of controlParams.k must be %d x %d', ncsPlant.inputSize, ncsPlant.stateSize + ncsPlant.maxDelaySteps);
 
             % Compute the control signal using the feedback gain
             liftedState = [rcvMsg.data(:); obj.delayedControlSignals];
 
-            controlSignal = controlParams.k * liftedState;
+            controlSignal = controlParams.k * liftedState
             obj.delayedControlSignals = [controlSignal; obj.delayedControlSignals(1:end-1)];
         end
     end

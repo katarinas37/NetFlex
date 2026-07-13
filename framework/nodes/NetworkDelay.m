@@ -49,10 +49,13 @@ classdef NetworkDelay < VariableDelay
             % Outputs:
             %   - transmitTime (double) : Scheduled time for message transmission.
             %   - sentMsg (NetworkMsg) : Copy of the received message.
-
+            
             currentTime = ttCurrentTime();
+
             sentMsg = rcvMsg;
             transmitTime = obj.delays(rcvMsg.seqNr) + rcvMsg.lastTransmitTS(end);
+  
+
             % Sanity check: Ensure transmitTime is not in the past
             if currentTime > transmitTime
                 error('Invalid transmitTime: currentTime: %.3f, transmitTime: %.3f', currentTime, transmitTime);

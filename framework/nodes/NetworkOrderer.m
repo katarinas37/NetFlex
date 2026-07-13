@@ -26,8 +26,13 @@ classdef NetworkOrderer < NetworkNode & handle
         sampleTime double % Sample time
         awaitSeqNr uint32 % seqNrnumber to wait for
         msgBuffer MsgBuffer % Buffer to store network messages
-        sentMsgDataHistory double
-        sentMsgTimeHistory double
+
+        rcvHistoryTime
+        rcvHistory
+        rcvHistoryData
+        sendHistoryTime
+        sendHistory
+        sendHistoryData
     end
     
     methods
@@ -49,8 +54,14 @@ classdef NetworkOrderer < NetworkNode & handle
             obj.sampleTime = sampleTime;
             obj.msgBuffer = MsgBuffer();
             obj.awaitSeqNr = 0;
-            obj.sentMsgDataHistory = [];
-            obj.sentMsgTimeHistory = [];
+
+
+            obj.rcvHistoryTime = [];
+            obj.rcvHistory = [];
+            obj.rcvHistoryData = [];
+            obj.sendHistoryTime = [];
+            obj.sendHistory = [];
+            obj.sendHistoryData = [];
         end
         
         function [executionTime, obj] = ordererTask(obj, seg)
@@ -86,6 +97,13 @@ classdef NetworkOrderer < NetworkNode & handle
             %   - executionTime (double) : Returns 0 (immediate execution).
 
             rcvMsg = ttGetMsg();
+            currentTime = ttCurrentTime();
+
+            obj.rcvHistoryTime = [obj.rcvHistoryTime,currentTime];
+            obj.rcvHistory = [obj.rcvHistory, rcvMsg];
+            obj.rcvHistoryData = [obj.rcvHistoryData, rcvMsg.data]; 
+
+
             sentMsg = rcvMsg;
             sentMsg.nodeId = obj.nodeNr;
             transSeqNr= round(rcvMsg.samplingTS / obj.sampleTime);
@@ -118,8 +136,11 @@ classdef NetworkOrderer < NetworkNode & handle
                     ttSendMsg(obj.nextNode, sentMsg, 80); % Send message (80 bits) to next node
                 end
 
-                obj.sentMsgDataHistory = [obj.sentMsgDataHistory,topElement.data.data];
-                obj.sentMsgTimeHistory = [obj.sentMsgTimeHistory,ttCurrentTime()];
+                transmitTime = ttCurrentTime;
+                obj.sendHistoryTime = [obj.sendHistoryTime, transmitTime];
+                obj.sendHistory = [obj.sendHistory, sentMsg];
+                obj.sendHistoryData = [obj.sendHistoryData, sentMsg.data];
+
                 ttAnalogOutVec(1:obj.nOut, topElement.data.data)
                 obj.msgBuffer.popTop();
                 obj.awaitSeqNr = obj.awaitSeqNr + 1;

@@ -5,7 +5,7 @@ classdef NetworkBuffer < VariableDelay
     % Messages are stored in the buffer and dispatched based on either a fixed delay
     % or a multi-rate transmission scheme.
     %
-    % The buffer operates in one of two modes:
+    % The buffer operates in one of the two modes:
     %   1. 'fixed'      - Applies a constant transmission delay.
     %   2. 'multirate'  - Divides the sampling period into multiple transmission intervals.
     %

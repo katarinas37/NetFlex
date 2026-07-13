@@ -29,7 +29,14 @@ classdef NetworkBufferAct < NetworkNode & handle
         msgBuffer MsgBuffer % Buffer to store messages waiting for transmission.
         sendTaskName char % Name of the TrueTime task handling message sending.
         delayTaskName char % Name of the TrueTime task handling delay processing.
-        sampleTime double % Sampling time of the system.    end
+        sampleTime double % Sampling time of the system.    
+                
+        rcvHistoryTime
+        rcvHistory
+        rcvHistoryData
+        sendHistoryTime
+        sendHistory
+        sendHistoryData
     end
     
     methods
@@ -51,6 +58,13 @@ classdef NetworkBufferAct < NetworkNode & handle
             obj.generateSendTaskName(nodeNr);
             obj.sampleTime = sampleTime;
             obj.msgBuffer = MsgBuffer();
+
+            obj.rcvHistoryTime = [];
+            obj.rcvHistory = [];
+            obj.rcvHistoryData = [];
+            obj.sendHistoryTime = [];
+            obj.sendHistory = [];
+            obj.sendHistoryData = [];
         end
         
         function [exectime, obj] = delay_code(obj, seg)
@@ -66,15 +80,21 @@ classdef NetworkBufferAct < NetworkNode & handle
                 case 1
                     % Get the new message
                     rcvMsg = ttGetMsg;
+                    currentTime = ttCurrentTime();
+
+                    obj.rcvHistoryTime = [obj.rcvHistoryTime, currentTime];
+                    obj.rcvHistory = [obj.rcvHistory, rcvMsg];
+                    obj.rcvHistoryData = [obj.rcvHistoryData, rcvMsg.data];
+
                     if(~isa(rcvMsg, 'NetworkMsg'))
                         error('Network Buffer (new) can only deal with NetworkMsg objects')
                     end
                     % Compute the transmit times
                     transmitTime = obj.calculateTransmitTime();
                     rcvMsg.lastTransmitTS = [rcvMsg.lastTransmitTS(end),transmitTime];
-                    rcvMsg.seqNr = ceil(ttCurrentTime/obj.sampleTime)+1;                        try
-                    ttKillJob(obj.sendTaskName);
-                    
+                    rcvMsg.seqNr = ceil(ttCurrentTime/obj.sampleTime)+1;                        
+                    try
+                        ttKillJob(obj.sendTaskName);    
                     catch
                         warning('send_delayed_task: Problem killing send_delay job')
                     end
@@ -104,9 +124,9 @@ classdef NetworkBufferAct < NetworkNode & handle
                     else % fullfilled only at the beginning 
                         % start sending data at t = sampleTime  (= u1, gets paired with x1)
                         wakeUpTime = obj.sampleTime+1e-9;  
-                        samplingTS = obj.sampleTime;
-                        lastTransmitTS = samplingTS;
-                        data = 0;
+                        samplingTS = NaN;
+                        lastTransmitTS = obj.sampleTime;
+                        data = zeros(obj.nOut,1);
                         seqNr = 2;
                         sentMsg = NetworkMsg(samplingTS, lastTransmitTS, data, seqNr, obj.nodeNr);
                         element = BufferElement(ttCurrentTime,sentMsg);
@@ -121,9 +141,10 @@ classdef NetworkBufferAct < NetworkNode & handle
                     end
                     exectime = 0;
                 case 3
-                    %the transmit time has ben reached -> send the message to the nextNode
+                    %the transmit time has been reached -> send the message to the nextNode
                     % get data
                     sentMsg = obj.msgBuffer.getTop().data;  % original
+                    sentMsg.nodeId = obj.nodeNr;
                     sentMsg.seqNr = round(sentMsg.lastTransmitTS(end)/obj.sampleTime+1); % change!!
                     
                     for nextNode = obj.nextNode
@@ -131,6 +152,13 @@ classdef NetworkBufferAct < NetworkNode & handle
                             ttSendMsg(nextNode, sentMsg, 80); % Send message (80 bits) to next node 5 (actuator)
                         end
                     end
+                    
+                    transmitTime = ttCurrentTime;
+                    obj.sendHistoryTime = [obj.sendHistoryTime, transmitTime];
+                    obj.sendHistory = [obj.sendHistory, sentMsg];
+                    obj.sendHistoryData = [obj.sendHistoryData, sentMsg.data];
+
+
                     ttAnalogOutVec(1:obj.nOut,sentMsg.data);
                     % schedule next job
                     ttCreateJob(obj.sendTaskName);
@@ -138,6 +166,9 @@ classdef NetworkBufferAct < NetworkNode & handle
                     sentMsg_new = sentMsg;
                     transmitTime = sentMsg.lastTransmitTS(end)+obj.sampleTime;
                     sentMsg_new.lastTransmitTS = [sentMsg.lastTransmitTS(1),transmitTime];
+
+                    % required if the networkDataSelector is used
+                    sentMsg_new.samplingTS = sentMsg_new.samplingTS + obj.sampleTime;
                     element = BufferElement(transmitTime,sentMsg_new);
                     obj.msgBuffer.pushTop(element);
                     exectime = -1;

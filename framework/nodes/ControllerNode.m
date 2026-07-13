@@ -24,14 +24,19 @@ classdef ControllerNode < NetworkNode
     properties 
         ncsPlant NcsPlant % Networked control system plant
         taskName char % Name of the TrueTime task
-        sendTimeHistory double % Time instants when signals were sent
-        controlSignalHistory double % Control signals sent
         controlStrategy % Control strategy used in the node
         controlParams % Control parameters for the strategy
+
+        rcvHistoryTime
+        rcvHistory
+        rcvHistoryData
+        sendHistoryTime
+        sendHistory
+        sendHistoryData
     end
     
     methods
-        function obj = ControllerNode(nextNode, nodeNr, ncsPlant, controlParams, strategyClass)
+        function obj = ControllerNode(outputCount,nextNode, nodeNr, ncsPlant, controlParams, strategyClass)
             % ControllerNode Constructor for a controller node in the network.
             %
             % This constructor initializes the controller node, assigns it a control 
@@ -45,13 +50,18 @@ classdef ControllerNode < NetworkNode
             %   - strategyClass (string) : Name of the control strategy class to be instantiated.
 
             % Call the parent class constructor (NetworkNode)
-            obj@NetworkNode(ncsPlant.inputSize, 0, nextNode, nodeNr);
+            obj@NetworkNode(outputCount, 0, nextNode, nodeNr);
             
             obj.generateTaskName(nodeNr);
             obj.ncsPlant = ncsPlant;
             obj.controlParams = controlParams;
-            obj.controlSignalHistory = [];
-            obj.sendTimeHistory = [];
+
+            obj.rcvHistoryTime = [];
+            obj.rcvHistory = [];
+            obj.rcvHistoryData = [];
+            obj.sendHistoryTime = [];
+            obj.sendHistory = [];
+            obj.sendHistoryData = [];
 
             % Validate controlParams and instantiate the strategy
             if isstruct(controlParams)
@@ -78,13 +88,14 @@ classdef ControllerNode < NetworkNode
             
             rcvMsg = ttGetMsg(); % Retrieve incoming network message
             currentTime = ttCurrentTime();
-            
+
+            obj.rcvHistoryTime = [obj.rcvHistoryTime,currentTime];
+            obj.rcvHistory = [obj.rcvHistory, rcvMsg];
+            obj.rcvHistoryData = [obj.rcvHistoryData, rcvMsg.data];   
+
             % Execute selected control strategy dynamically
             [controlSignal,obj.controlStrategy] = obj.controlStrategy.execute(rcvMsg, obj.controlParams, obj.ncsPlant);
 
-            % update
-            obj.controlSignalHistory = [obj.controlSignalHistory; controlSignal];
-            obj.sendTimeHistory = [obj.sendTimeHistory; currentTime];
 
             % Transmit results to the next node
             sentMsg = rcvMsg;
@@ -96,7 +107,13 @@ classdef ControllerNode < NetworkNode
                 end
             end
             executionTime = -1;
-            ttAnalogOutVec(1:numel(sentMsg.data),sentMsg.data);
+            
+            transmitTime = currentTime;
+            obj.sendHistoryTime = [obj.sendHistoryTime, transmitTime];
+            obj.sendHistory = [obj.sendHistory, sentMsg];
+            obj.sendHistoryData = [obj.sendHistoryData, sentMsg.data];
+            
+            ttAnalogOutVec(1:numel(sentMsg.data),sentMsg.data');
         end
         
         function init(obj)

@@ -1,83 +1,130 @@
 classdef SensorNode < NetworkNode
     % SensorNode Configures a TrueTime kernel as a sensor node.
     %
-    % This class represents a sensor node in a networked control system.
-    % The node samples sensor data and transmits it to the 
-    % next node(s) in the network.
-    % Aperiodic sampling is possible through modification
+    % This class represents a sensor node in a networked control system. The 
+    % node samples sensor data and transmits it to the next node(s) in the network.
+    %
+    % The system model used in this simulation is configured such that **all state 
+    % variables** are available as outputs (`y = x`). However, the sensor node does 
+    % not necessarily transmit all states; instead, it **selects specific outputs** 
+    % based on the defined measurement model `cT`. 
+    %
+    % This means:
+    %   - `nIn = stateSize`, since the sensor receives all system states from the plant.
+    %   - The **actual output** sent over the network is determined by `outputVector* x`, 
+    %     where `cT` is the sensor’s measurement matrix.
+    %
+    % This structure allows for flexibility in defining **partial state measurement** 
+    % scenarios, while still simulating the entire system state evolution.
     %
     % Properties:
     %   - taskName (char) : Name of the TrueTime task.
     %   - sampleTime (double) : Sampling time for periodic measurements.
-    %   - sequenceNumber (double) : Sequence number for messages.
+    %   - seqNr (double) : Sequence number for messages.
     %   - waitbarHandle : Handle to the simulation progress waitbar.
     %   - simEnd (double) : End time of the simulation.
+    %   - outputVector(double) : Measurement matrix determining which states are sent.
     %   - updateTime (double) : Time interval for updating the waitbar.
     %
     % Methods:
-    %   - SensorNode(nIn, nextNode, nodeNr, sampleTime, simEnd)
+    %   - SensorNode(nIn, nextNode, nodeNr, ncsPlant, simEnd)
     %   - init() : Initializes the TrueTime kernel and sensor task.
     %   - sampleStates(segment) : Periodically samples sensor data and sends messages.
-    %   - delete() : Cleans up resources when the object is deleted.
+    %   - delete() : Cleans up resources when the objeoutputVectoris deleted.
 
     properties
         taskName char % Name of the TrueTime task
+        seqNr double % Sequence number for messages
         sampleTime double % Sampling time for periodic measurements
-        sequenceNumber double % Sequence number for messages
-        waitbarHandle % Handle to the simulation progress waitbar
         simEnd double % End time of the simulation
+        outputVector double % output vector
+        waitbarHandle % Handle to the simulation progress waitbar
         updateTime double % Time interval for updating the waitbar
+
+        rcvHistoryTime
+        rcvHistory
+        rcvHistoryData
+        sendHistoryTime
+        sendHistory
+        sendHistoryData
     end
     
     methods
-        function obj = SensorNode(nIn, nextNode, nodeNr, sampleTime, simEnd)
+        function obj = SensorNode(nIn, nextNode, nodeNr, ncsPlant, simEnd)
             % SensorNode Constructor for a sensor node in the network.
             %
             % Initializes the sensor node with input size, communication links,
             % and timing parameters.
             %
             % Inputs:
-            %   - nIn (integer) : Number of sensor inputs.
+            %   - nIn (integer) : Number of system states (`stateSize`).
             %   - nextNode (integer or vector) : IDs of the next nodes in the network.
             %   - nodeNr (integer) : Unique ID of this sensor node.
-            %   - sampleTime (double) : Sampling period for periodic execution.
+            %   - ncsPlant (NcsPlant) : Reference to the plant model.
             %   - simEnd (double) : Total simulation time.
+            %
+            % Note:
+            % The **sensor input size (`nIn`) is equal to the number of system states (`stateSize`)** 
+            % because the system is configured to output all states. However, the **actual sensor 
+            % output sent over the network is determined by the measurement model `cT`**.
 
             % Call the parent class constructor (NetworkNode)
             obj@NetworkNode(nIn, nIn, nextNode, nodeNr);
 
             obj.generateTaskName(nodeNr);
-            obj.sampleTime = sampleTime;
-            obj.sequenceNumber = 1;
+            obj.seqNr = 1;
+            obj.sampleTime = ncsPlant.sampleTime;
             obj.simEnd = simEnd;
+            obj.outputVector= ncsPlant.system.c;
+
+            obj.rcvHistoryTime = [];
+            obj.rcvHistory = [];
+            obj.rcvHistoryData = [];
+            obj.sendHistoryTime = [];
+            obj.sendHistory = [];
+            obj.sendHistoryData = [];
         end
         
        
         function [executionTime, obj] = sampleStates(obj, ~)
-            % sampleStates Periodically samples sensor data and sends messages.
+           % sampleStates Periodically samples sensor data and sends messages.
             %
             % This method is triggered periodically to acquire sensor data,
             % package it into a network message, and transmit it to the next node(s).
             %
+            % The sensor reads **all system states** but **only transmits selected outputs** 
+            % defined by `cT`. This allows simulation of partial-state measurement scenarios.
+            %
             % Outputs:
             %   - executionTime (double) : Execution time for this sensor task.
             
-            sensorData = ttAnalogInVec(1:obj.nIn); % Read sensor data
-            ttAnalogOutVec(1:obj.nIn, sensorData); % Output sensor data
+            sensorData = obj.outputVector*ttAnalogInVec(1:obj.nIn)'; % Read sensor data (only output)
+
+            
+
+            ttAnalogOutVec(1:obj.nIn, ttAnalogInVec(1:obj.nIn)); % Output all system data
             TS = ttCurrentTime();
             
+            obj.rcvHistoryTime = [obj.rcvHistoryTime,TS];
+            obj.rcvHistory = [];
+            obj.rcvHistoryData = [obj.rcvHistoryData, sensorData]; 
+
             % Create and send network message
-            txMsg = NetworkMsg(TS, TS, sensorData, obj.sequenceNumber, obj.nodeNr);
-            obj.sequenceNumber = obj.sequenceNumber + 1;
+            sentMsg = NetworkMsg(TS, TS, sensorData, obj.seqNr, obj.nodeNr);
+            obj.seqNr = obj.seqNr + 1;
             
             for nextNode = obj.nextNode(:)' % Send to all connected nodes
                 if nextNode
-                    ttSendMsg(nextNode, txMsg, 80);
+                    ttSendMsg(nextNode, sentMsg, 80);
                 end
             end
             
             executionTime = -1; % Indicate task completion
-            
+            transmitTime = TS;
+            obj.sendHistoryTime = [obj.sendHistoryTime, transmitTime];
+            obj.sendHistory = [obj.sendHistory, sentMsg];
+            obj.sendHistoryData = [obj.sendHistoryData, sentMsg.data];
+
             % Update simulation progress waitbar
             progress = (ttCurrentTime() + obj.sampleTime) / obj.simEnd;
             progress = min(progress, 1);
@@ -104,9 +151,13 @@ classdef SensorNode < NetworkNode
             %
             % This method initializes the TrueTime kernel, creates a  
             % task for sensor data acquisition, and initializes a waitbar for 
-            % simulation progress.            
+            % simulation progress.
+            %
+            % - The sensor task is **periodic** and runs at `sampleTime` intervals.
+            % - The waitbar provides a visual representation of simulation progress.
 
-            obj.sequenceNumber = 1;
+            % Reset sequence number
+            obj.seqNr = 1;
             
             % Initialize TrueTime kernel
             ttInitKernel('prioDM'); % Deadline-monotonic scheduling
